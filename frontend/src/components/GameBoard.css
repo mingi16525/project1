@@ -1,0 +1,461 @@
+.game-board {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.game-board h2 {
+  margin: 0;
+  color: #e94560;
+  font-size: 1.8rem;
+}
+
+.board-info {
+  display: flex;
+  gap: 20px;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+/* Edit Tools */
+.edit-tools {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 15px;
+  background-color: #0f3460;
+  border-radius: 8px;
+  max-width: 900px;
+  width: 100%;
+}
+
+.tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background-color: #16213e;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background-color: #1a4d7a;
+  transform: translateY(-2px);
+}
+
+.tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tool-btn.active {
+  border-color: #e94560;
+  background-color: #1a4d7a;
+  box-shadow: 0 0 10px rgba(233, 69, 96, 0.3);
+}
+
+.btn-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.circle-icon {
+  border-radius: 50%;
+  background-color: #0066ff;
+}
+
+.block-icon {
+  background-color: #ff0000;
+  border-radius: 2px;
+}
+
+.diamond-icon {
+  background-color: #ff6600;
+  transform: rotate(45deg);
+}
+
+.save-btn {
+  background-color: #28a745;
+  margin-left: auto;
+}
+
+.save-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.clear-btn {
+  background-color: #444;
+}
+
+.clear-btn:hover {
+  background-color: #666;
+}
+
+/* Algorithm Tools */
+.algorithm-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px;
+  background-color: #0f3460;
+  border-radius: 8px;
+  max-width: 900px;
+  width: 100%;
+}
+
+.algorithm-tools h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.algorithm-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.algo-btn {
+  padding: 12px 20px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.algo-btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.algo-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.algo-btn.active {
+  border-color: #ffd700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+}
+
+.stop-btn {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.reset-btn {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.visited-btn {
+  background: linear-gradient(135deg, #a8a8a8 0%, #6c6c6c 100%);
+}
+
+.visited-btn.active {
+  background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+  border-color: #ffd700;
+}
+
+.replay-visited-btn {
+  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+}
+
+.replay-visited-btn:disabled {
+  opacity: 0.4;
+}
+
+/* Speed Control */
+.speed-control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px;
+  background-color: #16213e;
+  border-radius: 6px;
+  align-items: center;
+}
+
+.speed-control label {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 500;
+  width: 100%;
+  max-width: 500px;
+}
+
+.speed-control input[type="range"] {
+  width: 100%;
+  height: 8px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #84fab0 0%, #8fd3f4 50%, #ffd89b 100%);
+  outline: none;
+  cursor: pointer;
+}
+
+.speed-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffd700;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.speed-control input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+}
+
+.speed-control input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffd700;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.speed-control input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+}
+
+.speed-control input[type="range"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.speed-label {
+  color: #ffd700;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+/* Path Info */
+.path-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 15px;
+  background-color: #16213e;
+  border-radius: 6px;
+  border-left: 4px solid #e94560;
+}
+
+.info-item {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.info-item strong {
+  color: #ffd700;
+  margin-right: 5px;
+}
+
+.grid {
+  display: grid;
+  gap: 2px;
+  background-color: #333;
+  padding: 5px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.tile {
+  width: 50px;
+  height: 50px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.tile.editable {
+  cursor: crosshair;
+}
+
+/* Ô rỗng - màu trắng */
+.tile.empty {
+  background-color: #ffffff;
+}
+
+/* Ô bị chặn - màu đỏ */
+.tile.blocked {
+  background-color: #ff0000;
+}
+
+/* Điểm bắt đầu */
+.tile.start {
+  background-color: #90EE90;
+}
+
+/* Điểm kết thúc */
+.tile.end {
+  background-color: #FFD700;
+}
+
+/* Ô trong đường đi */
+.tile.in-path {
+  background-color: #87CEEB !important;
+  animation: pathPulse 1s ease-in-out infinite;
+}
+
+.tile.in-path.start,
+.tile.in-path.end {
+  animation: none;
+}
+
+/* Ô đã duyệt (visited nodes) */
+.tile.visited {
+  background-color: rgba(192, 192, 192, 0.5) !important;
+  position: relative;
+  animation: visitedFadeIn 0.3s ease-in-out;
+}
+
+@keyframes visitedFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tile.visited::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(128, 128, 128, 0.1) 5px,
+    rgba(128, 128, 128, 0.1) 10px
+  );
+  pointer-events: none;
+}
+
+/* Path có độ ưu tiên cao hơn visited */
+.tile.visited.in-path {
+  background-color: #87CEEB !important;
+}
+
+.tile.visited.in-path::after {
+  display: none;
+}
+
+@keyframes pathPulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Hình ảnh cho điểm bắt đầu và kết thúc */
+.tile-image {
+  width: 45px;
+  height: 45px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  image-rendering: auto;
+  image-rendering: crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Player marker */
+.player-marker {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffeb3b 0%, #ff9800 100%);
+  box-shadow: 0 0 15px rgba(255, 235, 59, 0.8);
+  animation: playerBounce 0.5s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Player marker image */
+.player-marker-image {
+  width: 45px;
+  height: 45px;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 10;
+  animation: playerBlink 0.6s ease-in-out infinite, playerFloat 1s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+  image-rendering: auto;
+  image-rendering: crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+@keyframes playerBlink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes playerFloat {
+  0% {
+    transform: translateY(-3px) scale(1);
+  }
+  100% {
+    transform: translateY(3px) scale(1.05);
+  }
+}
+
+@keyframes playerBounce {
+  0% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+.tile:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+  z-index: 1;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}

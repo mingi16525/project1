@@ -1,0 +1,92 @@
+.map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-item {
+  background-color: #0f3460;
+  padding: 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.map-item:hover {
+  background-color: #1a4d7a;
+  transform: translateX(5px);
+}
+
+.map-item.selected {
+  border-color: #e94560;
+  background-color: #1a4d7a;
+}
+
+.map-item h3 {
+  margin: 0 0 5px 0;
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.map-item p {
+  margin: 0;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.custom-map-inputs {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.input-group {
+  margin-bottom: 10px;
+}
+
+.input-group label {
+  display: block;
+  color: #aaa;
+  font-size: 0.85rem;
+  margin-bottom: 5px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 8px;
+  background-color: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.create-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: #e94560;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+}
+
+.create-btn:hover {
+  background-color: #d63450;
+  transform: scale(1.02);
+}
+
+.create-btn:active {
+  transform: scale(0.98);
+}
