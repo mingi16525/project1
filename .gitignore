@@ -1,0 +1,43 @@
+# Java / Maven
+/target/
+**/target/
+*.class
+*.jar
+
+# Backend build output
+/backend/target/
+
+# Node / frontend
+/node_modules/
+/frontend/node_modules/
+/frontend/build/
+/build/
+
+# IDEs and editors
+/.idea/
+.vscode/
+*.iml
+
+# Environment
+.env
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.orig
+coverage/
+
+# .md files
+DEPLOY_GUIDE.md
+DEVOPS_GUIDE.md
+
+deployment-info.txt
+deploy-frontend.sh
+nginx-game-webapp.conf
+setup-nginx.sh
