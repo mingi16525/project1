@@ -181,7 +181,7 @@ deploy:staging:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client openssh-keygen bash
     - mkdir -p ~/.ssh
     - |
       # Support both GitLab CI variable types:
@@ -195,23 +195,30 @@ deploy:staging:
     - chmod 600 ~/.ssh/id_rsa
     - |
       # Convert OpenSSH format to PEM for compatibility with older crypto libraries
+      echo "Checking SSH key format..."
+      head -1 ~/.ssh/id_rsa
       if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "Converting OpenSSH key to PEM format..."
-        # Create backup of original key
+        echo "Detected OpenSSH format, converting to PEM..."
         cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
-        # Convert to PEM format (no passphrase)
-        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" 2>/dev/null || {
-          echo "Warning: Key conversion failed. Using original key."
+        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" || {
+          echo "ERROR: Key conversion failed!"
           mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
         }
-        # Verify conversion
-        if grep -q "BEGIN RSA PRIVATE KEY" ~/.ssh/id_rsa || grep -q "BEGIN EC PRIVATE KEY" ~/.ssh/id_rsa; then
-          echo "Successfully converted to PEM format"
-          rm -f ~/.ssh/id_rsa.backup
-        fi
+        echo "Key format after conversion:"
+        head -1 ~/.ssh/id_rsa
+      else
+        echo "Key is already in PEM or other compatible format"
       fi
     - eval $(ssh-agent -s)
-    - ssh-add ~/.ssh/id_rsa
+    - |
+      # Try to add SSH key with better error handling
+      if ! ssh-add ~/.ssh/id_rsa; then
+        echo "ERROR: Failed to add SSH key. Key info:"
+        file ~/.ssh/id_rsa || true
+        ls -la ~/.ssh/id_rsa
+        exit 1
+      fi
+      echo "SSH key added successfully"
     - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
@@ -240,7 +247,7 @@ deploy:production:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client openssh-keygen bash
     - mkdir -p ~/.ssh
     - |
       # Support both GitLab CI variable types:
@@ -254,23 +261,30 @@ deploy:production:
     - chmod 600 ~/.ssh/id_rsa
     - |
       # Convert OpenSSH format to PEM for compatibility with older crypto libraries
+      echo "Checking SSH key format..."
+      head -1 ~/.ssh/id_rsa
       if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "Converting OpenSSH key to PEM format..."
-        # Create backup of original key
+        echo "Detected OpenSSH format, converting to PEM..."
         cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
-        # Convert to PEM format (no passphrase)
-        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" 2>/dev/null || {
-          echo "Warning: Key conversion failed. Using original key."
+        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" || {
+          echo "ERROR: Key conversion failed!"
           mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
         }
-        # Verify conversion
-        if grep -q "BEGIN RSA PRIVATE KEY" ~/.ssh/id_rsa || grep -q "BEGIN EC PRIVATE KEY" ~/.ssh/id_rsa; then
-          echo "Successfully converted to PEM format"
-          rm -f ~/.ssh/id_rsa.backup
-        fi
+        echo "Key format after conversion:"
+        head -1 ~/.ssh/id_rsa
+      else
+        echo "Key is already in PEM or other compatible format"
       fi
     - eval $(ssh-agent -s)
-    - ssh-add ~/.ssh/id_rsa
+    - |
+      # Try to add SSH key with better error handling
+      if ! ssh-add ~/.ssh/id_rsa; then
+        echo "ERROR: Failed to add SSH key. Key info:"
+        file ~/.ssh/id_rsa || true
+        ls -la ~/.ssh/id_rsa
+        exit 1
+      fi
+      echo "SSH key added successfully"
     - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
