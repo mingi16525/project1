@@ -3,6 +3,8 @@ import './GameBoard.css';
 import { findPath } from '../services/api';
 import { PlayerMovement } from '../services/PlayerMovement';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
+
 function GameBoard({ map, onMapUpdate }) {
   const [editMode, setEditMode] = useState(null); // null, 'start', 'obstacle', 'end'
   const [localMap, setLocalMap] = useState(map);
@@ -187,7 +189,7 @@ function GameBoard({ map, onMapUpdate }) {
   const renderTileContent = (tile, rowIndex, colIndex) => {
     // Check if player is at this position
     if (playerPosition && playerPosition.row === rowIndex && playerPosition.col === colIndex) {
-      return <img src="http://localhost:8080/api/images/mario.jpeg" alt="Player" className="player-marker-image" />;
+      return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Player" className="player-marker-image" />;
     }
     
     // Don't show start image if player is animating and this is the start position
@@ -196,9 +198,9 @@ function GameBoard({ map, onMapUpdate }) {
       if (isAnimating && playerPosition && !(playerPosition.row === rowIndex && playerPosition.col === colIndex)) {
         return null; // Hide mario at start position when player is moving
       }
-      return <img src="http://localhost:8080/api/images/mario.jpeg" alt="Start" className="tile-image" />;
+      return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Start" className="tile-image" />;
     } else if (tile === 'y') {
-      return <img src="http://localhost:8080/api/images/diamond.jpg" alt="End" className="tile-image" />;
+      return <img src={`${API_BASE_URL}/api/images/diamond.jpg`} alt="End" className="tile-image" />;
     }
     return null;
   };

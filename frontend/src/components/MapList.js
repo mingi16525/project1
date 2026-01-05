@@ -75,16 +75,16 @@ function MapList({ maps, onSelectMap, selectedMapId, onCreateCustomMap }) {
       </div>
 
       {/* Existing Maps */}
-      {maps.map((map) => (
-        <div
-          key={map.id}
-          className={`map-item ${selectedMapId === map.id ? 'selected' : ''}`}
-          onClick={() => onSelectMap(map.id)}
-        >
-          <h3>{map.name}</h3>
-          <p>{map.width} x {map.height}</p>
-        </div>
-      ))}
+      {Array.isArray(maps) && maps.map((map) => (
+  <div
+    key={map.id}
+    className={`map-item ${selectedMapId === map.id ? 'selected' : ''}`}
+    onClick={() => onSelectMap(map.id)}
+  >
+    <h3>{map.name}</h3>
+    <p>{map.width} x {map.height}</p>
+  </div>
+))}
     </div>
   );
 }

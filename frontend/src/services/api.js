@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,27 +10,27 @@ const api = axios.create({
 });
 
 export const getMaps = async () => {
-  const response = await api.get('/maps');
+  const response = await api.get('/api/maps');
   return response.data;
 };
 
 export const getMapById = async (id) => {
-  const response = await api.get(`/maps/${id}`);
+  const response = await api.get(`/api/maps/${id}`);
   return response.data;
 };
 
 export const saveMap = async (map) => {
-  const response = await api.post('/maps', map);
+  const response = await api.post('/api/maps', map);
   return response.data;
 };
 
 export const updateMap = async (id, map) => {
-  const response = await api.put(`/maps/${id}`, map);
+  const response = await api.put(`/api/maps/${id}`, map);
   return response.data;
 };
 
 export const findPath = async (tiles, width, height, algorithm) => {
-  const response = await api.post('/pathfinding', {
+  const response = await api.post('/api/pathfinding', {
     tiles,
     width,
     height,

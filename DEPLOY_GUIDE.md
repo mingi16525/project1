@@ -1,375 +1,530 @@
-# 🚀 Hướng dẫn Deploy lên Internet
+# 🚀 Hướng dẫn Deploy lên DigitalOcean VPS
 
-Hướng dẫn chi tiết để triển khai Game Web Application - Pathfinding Visualizer lên môi trường production.
+Hướng dẫn chi tiết từng bước để triển khai Game Web Application - Pathfinding Visualizer lên DigitalOcean VPS với SSL certificate miễn phí.
 
 ## 📋 Mục lục
 
-1. [Tổng quan](#tổng-quan)
+1. [Tổng quan kiến trúc](#tổng-quan-kiến-trúc)
 2. [Chuẩn bị trước khi deploy](#chuẩn-bị-trước-khi-deploy)
-3. [Phương án deploy](#phương-án-deploy)
-4. [Deploy Backend](#deploy-backend)
-5. [Deploy Frontend](#deploy-frontend)
-6. [Cấu hình Domain và SSL](#cấu-hình-domain-và-ssl)
-7. [Monitoring và Maintenance](#monitoring-và-maintenance)
-8. [Rollback Strategy](#rollback-strategy)
+3. [Tạo và cấu hình DigitalOcean Droplet](#bước-1-tạo-và-cấu-hình-digitalocean-droplet)
+4. [Deploy Backend Spring Boot](#bước-2-deploy-backend-spring-boot)
+5. [Deploy Frontend React](#bước-3-deploy-frontend-react)
+6. [Cấu hình Nginx Reverse Proxy](#bước-4-cấu-hình-nginx-reverse-proxy)
+7. [Cài đặt SSL Certificate](#bước-5-cài-đặt-ssl-certificate)
+8. [Cấu hình Domain](#bước-6-cấu-hình-domain)
+9. [Monitoring và Maintenance](#monitoring-và-maintenance)
+10. [Backup và Rollback](#backup-và-rollback)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
-## 🎯 Tổng quan
+## 🎯 Tổng quan kiến trúc
 
-### Kiến trúc Production
+### Kiến trúc Production trên DigitalOcean
 
 ```
-┌─────────────────────────────────────────────────┐
-│              Internet Users                      │
-└──────────────────┬──────────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────────┐
-│         CDN / Static Hosting (Frontend)         │
-│         - Vercel / Netlify / AWS S3             │
-└──────────────────┬──────────────────────────────┘
-                   │
-                   │ API Calls
-                   ▼
-┌─────────────────────────────────────────────────┐
-│         Backend Server (Spring Boot)            │
-│         - Heroku / Railway / AWS EC2            │
-│         - Port 8080 → Expose via reverse proxy  │
-└──────────────────┬──────────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────────┐
-│         Static Files (Images, Maps)             │
-│         - Local disk / S3 / Cloud Storage       │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                  Internet Users                      │
+│              (HTTP/HTTPS Requests)                   │
+└───────────────────────┬─────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│               Domain DNS (yourdomain.com)            │
+│         A Record → DigitalOcean Droplet IP           │
+└───────────────────────┬─────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│          DigitalOcean Droplet (Ubuntu 22.04)        │
+│                  IP: xxx.xxx.xxx.xxx                │
+│                                                     │
+│  ┌────────────────────────────────────────────────┐ │
+│  │          Nginx (Port 80/443)                   │ │
+│  │         - Reverse Proxy                        │ │
+│  │         - SSL Termination                      │ │
+│  │         - Static File Serving                  │ │
+│  └────────┬────────────────────────┬──────────────┘ │
+│           │                        │                │
+│           │ API Requests           │ Static Files   │
+│           ▼                        ▼                │
+│  ┌─────────────────────┐  ┌────────────────────┐    │
+│  │  Spring Boot         │  │  React Build       │   │
+│  │  (Port 8080)         │  │  (/var/www/html)   │   │
+│  │  - REST API          │  │  - index.html      │   │
+│  │  - Pathfinding       │  │  - static/         │   │
+│  │  - Systemd Service   │  │                    │   │
+│  └──────────┬───────────┘  └────────────────────┘   │
+│             │                                       │
+│             ▼                                       │
+│  ┌─────────────────────────────────────────────┐    │
+│  │        Data Storage                         │    │
+│  │  /opt/game/data/                            │    │
+│  │  ├── maps/ (Map1.txt, Map2.txt)             │    │
+│  │  └── img/ (mario.jpeg, diamond.jpg)         │    │
+│  └─────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Yêu cầu hệ thống Production
+### Tech Stack
 
-- **Backend**: Java 17+, 512MB RAM minimum (1GB recommended)
-- **Frontend**: Static hosting với HTTPS
-- **Database**: Không cần (file-based)
-- **Storage**: ~50MB cho images và map files
+**Server**: DigitalOcean Droplet Ubuntu 22.04 LTS
+**Backend**: Spring Boot (Java 17) - Port 8080
+**Frontend**: React (Static Build) - Served by Nginx
+**Web Server**: Nginx - Reverse Proxy + Static Files
+**SSL**: Let's Encrypt (Certbot)
+**Process Manager**: Systemd
+
+### Chi phí ước tính
+
+- **Droplet**: $6/tháng (1GB RAM, 1 vCPU, 25GB SSD) - Đủ cho application này
+- **Domain**: $10-15/năm
+- **SSL Certificate**: $0 (Let's Encrypt miễn phí)
+
+**Tổng**: ~$7-8/tháng
 
 ---
 
 ## 🛠️ Chuẩn bị trước khi deploy
 
-### 1. Checklist Backend
+### 1. Yêu cầu
 
-- [ ] Build thành công: `mvn clean package`
-- [ ] Tạo file `application-prod.properties`
-- [ ] Cấu hình CORS cho domain production
-- [ ] Kiểm tra log level (INFO/WARN cho production)
-- [ ] Đóng gói data folder (maps, images)
+#### Tài khoản và dịch vụ
+- [ ] **DigitalOcean Account** - [Đăng ký tại đây](https://www.digitalocean.com/)
+  - Có thể nhận $200 credit miễn phí trong 60 ngày cho tài khoản mới
+- [ ] **Domain Name** (khuyến nghị)
+  - Namecheap, GoDaddy, hoặc nhà cung cấp tên miền Việt Nam
+  - Ví dụ: `prj1mg.me `
+- [ ] **SSH Client** 
+  - Windows: Git Bash, PowerShell, hoặc PuTTY
+  - Mac/Linux: Terminal built-in
+- [ ] **Git** - Đã cài đặt trên máy local
 
-### 2. Checklist Frontend
+#### Công cụ local
+- Java 17+ và Maven (để build backend)
+- Node.js 14+ và npm (để build frontend)
+- Git
 
-- [ ] Build production: `npm run build`
-- [ ] Kiểm tra build output trong `build/`
-- [ ] Cập nhật API base URL cho production
-- [ ] Test responsive trên mobile/tablet
-- [ ] Optimize images nếu cần
+### 2. Chuẩn bị Project
 
-### 3. Tài khoản cần có
-
-- [ ] GitHub account (để host source code)
-- [ ] Domain name (tùy chọn, hoặc dùng subdomain free)
-- [ ] Tài khoản hosting (chọn 1):
-  - Vercel/Netlify (Frontend - Free tier)
-  - Heroku/Railway (Backend - Free/Paid tier)
-  - AWS/DigitalOcean (Full control - Paid)
-
----
-
-## 🎨 Phương án deploy
-
-### Option 1: Free Tier (Recommended cho bắt đầu)
-
-**Frontend**: Vercel hoặc Netlify
-- ✅ Free SSL certificate
-- ✅ Global CDN
-- ✅ Auto deploy từ Git
-- ✅ Custom domain support
-
-**Backend**: Railway hoặc Render
-- ✅ Free tier với giới hạn hours
-- ✅ Auto restart
-- ✅ Environment variables
-- ⚠️ Sleep sau 15 phút không hoạt động (Railway)
-
-### Option 2: Low-Cost VPS
-
-**Hosting**: DigitalOcean Droplet hoặc AWS Lightsail
-- ✅ Full control
-- ✅ $5-10/month
-- ✅ Có thể host cả Frontend + Backend
-- ⚠️ Cần tự quản lý server
-
-### Option 3: Enterprise (Full AWS/Azure)
-
-**Infrastructure**: 
-- Frontend: AWS S3 + CloudFront
-- Backend: AWS EC2 / ECS / Elastic Beanstalk
-- Storage: AWS S3
-- ⚠️ Phức tạp, chi phí cao hơn
-
----
-
-## 🔧 Deploy Backend
-
-### A. Deploy lên Railway (Recommended)
-
-#### 1. Chuẩn bị project
-
-**Tạo file `Procfile` trong thư mục `backend/`:**
-```
-web: java -Dserver.port=$PORT -jar target/game-backend-0.0.1-SNAPSHOT.jar
-```
-
-**Tạo `system.properties` trong thư mục `backend/`:**
-```properties
-java.runtime.version=17
-```
-
-**Cập nhật `application.properties`:**
-```properties
-# Production profile
-spring.profiles.active=${SPRING_PROFILES_ACTIVE:prod}
-server.port=${PORT:8080}
-
-# CORS - Cập nhật domain thực tế
-cors.allowed.origins=${CORS_ORIGINS:https://your-frontend-domain.vercel.app}
-```
-
-#### 2. Deploy steps
+#### Build và test local
 
 ```bash
-# 1. Push code lên GitHub
+# Backend
+cd backend
+mvn clean package -DskipTests
+# Verify JAR file: target/game-backend-0.0.1-SNAPSHOT.jar
+
+# Frontend
+cd frontend
+npm install
+npm run build
+# Verify build folder: build/
+```
+
+#### Commit code lên GitHub
+
+```bash
+cd game-webapp
 git init
 git add .
 git commit -m "Prepare for production deployment"
 git branch -M main
-git remote add origin https://github.com/your-username/game-webapp.git
+git remote add origin https://github.com/yourusername/game-webapp.git
 git push -u origin main
-
-# 2. Truy cập Railway
-# - Đăng nhập https://railway.app
-# - Click "New Project" → "Deploy from GitHub repo"
-# - Chọn repository: game-webapp
-# - Chọn thư mục: backend/
-
-# 3. Cấu hình Environment Variables
-# Trong Railway Dashboard → Variables:
-SPRING_PROFILES_ACTIVE=prod
-CORS_ORIGINS=https://your-frontend.vercel.app,https://your-domain.com
 ```
 
-#### 3. Upload static files
+### 3. Thông tin cần ghi chú
 
-Railway không persistent storage, cần upload `data/` folder:
+Tạo file `deployment-info.txt` để lưu các thông tin sau (dùng sau này):
 
-**Option A**: Commit vào Git
-```bash
-# Đảm bảo data/ không trong .gitignore
-git add backend/data/
-git commit -m "Add data files"
-git push
+```txt
+=== DEPLOYMENT INFO ===
+Droplet IP: [Sẽ có sau khi tạo]
+Domain: prj1mg.me 
+SSH User: root
+GitHub Repo: https://github.com/yourusername/game-webapp
+
+=== CREDENTIALS ===
+DigitalOcean: [email/password]
+Domain Registrar: [email/password]
+
+=== NOTES ===
+Backend Port: 8080
+Frontend Build Path: /var/www/html
+Backend JAR Path: /opt/game/
+Data Path: /opt/game/data/
 ```
 
-**Option B**: Sử dụng AWS S3
-- Upload `data/img/` lên S3 bucket
-- Cập nhật `ImageController.java` để load từ S3
-- Set environment variables: `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `S3_BUCKET_NAME`
+---
 
-#### 4. Verify deployment
+## 🖥️ BƯỚC 1: Tạo và cấu hình DigitalOcean Droplet
+
+### 1.1. Tạo Droplet
+
+1. **Đăng nhập DigitalOcean Console**
+   - Truy cập: https://cloud.digitalocean.com/
+
+2. **Create Droplet**
+   - Click nút **"Create"** → **"Droplets"**
+
+3. **Chọn cấu hình:**
+
+   **Choose an image:**
+   - Distribution: **Ubuntu 22.04 LTS x64**
+
+   **Choose Size:**
+   - Plan: **Basic**
+   - CPU options: **Regular** (Shared CPU)
+   - RAM: **1 GB** / 1 vCPU / 25 GB SSD / 1000 GB Transfer ($6/month)
+   
+   **Choose a datacenter region:**
+   - Chọn region gần người dùng:
+     - Singapore (sgp1) - Tốt cho Việt Nam
+     - Bangalore (blr1) - Alternative
+     - San Francisco (sfo3) - Nếu target US
+
+   **Authentication:**
+   - Chọn **"SSH keys"** (Khuyến nghị - an toàn hơn)
+   - Hoặc **"Password"** (đơn giản cho người mới)
+
+   **Tạo SSH Key (nếu chưa có):**
+   ```bash
+   # Trên máy local (Git Bash hoặc Terminal)
+   ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
+   # Nhấn Enter để lưu mặc định: ~/.ssh/id_rsa
+   # Nhập passphrase (tùy chọn)
+   
+   # Copy public key
+   cat ~/.ssh/id_rsa.pub
+   # Paste nội dung này vào DigitalOcean SSH Key form
+   ```
+
+   **Finalize Details:**
+   - Hostname: `game-webapp-prod`
+   - Tags: `production`, `game-app`
+   - Project: Default hoặc tạo project mới
+
+4. **Create Droplet**
+   - Click **"Create Droplet"**
+   - Đợi 1-2 phút để droplet được tạo
+   - Ghi lại **IP Address** (ví dụ: 159.65.128.45)
+
+### 1.2. Kết nối SSH lần đầu
 
 ```bash
-# Test API endpoint
-curl https://your-app.railway.app/api/maps
+# Kết nối với SSH key
+ssh root@152.42.196.25
 
-# Test image endpoint
-curl https://your-app.railway.app/api/images/mario.jpeg
+# Hoặc với password (nếu chọn password authentication)
+# Password sẽ được gửi qua email
+
+# First login message sẽ hiển thị
+# Đọc và nhấn 'yes' để tiếp tục
 ```
 
-### B. Deploy lên Heroku
-
-#### 1. Cài đặt Heroku CLI
+### 1.3. Cấu hình bảo mật cơ bản
 
 ```bash
-# Windows (PowerShell)
-# Download và cài đặt từ: https://devcenter.heroku.com/articles/heroku-cli
-```
-
-#### 2. Deploy commands
-
-```bash
-cd backend
-
-# Login Heroku
-heroku login
-
-# Tạo app
-heroku create your-game-backend
-
-# Set Java version
-heroku config:set JAVA_TOOL_OPTIONS="-Xmx300m -Xss512k"
-
-# Set environment variables
-heroku config:set SPRING_PROFILES_ACTIVE=prod
-heroku config:set CORS_ORIGINS=https://your-frontend.vercel.app
-
-# Deploy
-git subtree push --prefix backend heroku main
-
-# Hoặc nếu backend là root:
-git push heroku main
-
-# View logs
-heroku logs --tail
-```
-
-### C. Deploy lên VPS (Ubuntu)
-
-#### 1. Setup server
-
-```bash
-# SSH vào server
-ssh root@your-server-ip
-
-# Update system
+# Update system packages
 apt update && apt upgrade -y
 
-# Cài Java 17
-apt install openjdk-17-jdk -y
+# Tạo user mới (không dùng root trực tiếp)
+adduser gameadmin
+password: my_password
+usermod -aG sudo gameadmin
 
-# Verify
-java -version
+# Copy SSH key sang user mới (nếu dùng SSH key)
+rsync --archive --chown=gameadmin:gameadmin ~/.ssh /home/gameadmin
+
+# Test login với user mới (mở terminal mới)
+ssh gameadmin@152.42.196.25
+
+# Disable root login qua SSH (sau khi test gameadmin OK)
+sudo nano /etc/ssh/sshd_config
+# Tìm và sửa: PermitRootLogin no
+# Restart SSH:
+sudo systemctl restart sshd
 ```
 
-#### 2. Upload và chạy application
+### 1.4. Cấu hình Firewall
 
 ```bash
-# Trên local machine, build JAR
+# Enable UFW firewall
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp      # HTTP
+sudo ufw allow 443/tcp     # HTTPS
+sudo ufw enable
+
+# Check status
+sudo ufw status
+```
+
+Kết quả mong đợi:
+```
+Status: active
+
+To                         Action      From
+--                         ------      ----
+OpenSSH                    ALLOW       Anywhere
+80/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
+```
+
+---
+
+## ☕ BƯỚC 2: Deploy Backend Spring Boot
+
+### 2.1. Cài đặt Java 17
+
+```bash
+# Install OpenJDK 17
+sudo apt update
+sudo apt install openjdk-17-jdk -y
+
+# Verify installation
+java -version
+# Output: openjdk version "17.x.x"
+
+# Set JAVA_HOME (optional but recommended)
+echo 'JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"' | sudo tee -a /etc/environment
+source /etc/environment
+```
+
+### 2.2. Tạo thư mục ứng dụng
+
+```bash
+# Tạo folder structure
+sudo mkdir -p /opt/game/data/maps
+sudo mkdir -p /opt/game/data/img
+
+# Set ownership
+sudo chown -R $USER:$USER /opt/game
+```
+
+### 2.3. Upload Backend files
+
+**Option A: Upload JAR và data files từ local (Khuyến nghị cho lần đầu)**
+
+```bash
+# Trên máy local, từ thư mục game-webapp/
 cd backend
+
+# Build JAR nếu chưa build
 mvn clean package -DskipTests
 
-# Upload lên server (sử dụng SCP)
-scp target/game-backend-0.0.1-SNAPSHOT.jar root@your-server-ip:/opt/game/
-scp -r data/ root@your-server-ip:/opt/game/
+# Upload JAR file
+scp target/game-backend-0.0.1-SNAPSHOT.jar gameadmin@152.42.196.25:/opt/game/
 
-# Trên server, tạo systemd service
+# Upload data folder
+scp -r data/maps/* gameadmin@152.42.196.25:/opt/game/data/maps/
+scp -r data/img/* gameadmin@152.42.196.25:/opt/game/data/img/
+```
+
+**Option B: Clone từ GitHub và build trên server**
+
+```bash
+# Trên server
+cd /opt/game
+
+# Install Maven
+sudo apt install maven -y
+
+# Clone repository
+git clone https://github.com/yourusername/game-webapp.git
+cd game-webapp/backend
+
+# Build
+mvn clean package -DskipTests
+
+# Copy files
+cp target/game-backend-0.0.1-SNAPSHOT.jar /opt/game/
+cp -r data/* /opt/game/data/
+```
+
+### 2.4. Tạo Production Configuration
+
+```bash
+# Tạo application-prod.properties
+sudo nano /opt/game/application-prod.properties
+```
+
+**Nội dung file:**
+```properties
+# Server Configuration
+server.port=8080
+server.address=localhost
+
+# Application name
+spring.application.name=game-backend
+
+# CORS Configuration - Cập nhật sau khi có domain
+cors.allowed.origins=http://152.42.196.25,http://prj1mg.me ,https://prj1mg.me 
+
+# Logging
+logging.level.root=WARN
+logging.level.com.game=INFO
+logging.file.name=/opt/game/logs/application.log
+logging.file.max-size=10MB
+logging.file.max-history=7
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %msg%n
+logging.pattern.file=%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n
+
+# Data path (relative to JAR location)
+game.data.path=/opt/game/data
+```
+
+### 2.5. Tạo Systemd Service
+
+```bash
+# Tạo service file
 sudo nano /etc/systemd/system/game-backend.service
 ```
 
-**File `game-backend.service`:**
+**Nội dung file:**
 ```ini
 [Unit]
-Description=Game Backend Service
+Description=Game Pathfinding Backend Service
 After=syslog.target network.target
 
 [Service]
-User=root
+User=gameadmin
 WorkingDirectory=/opt/game
-ExecStart=/usr/bin/java -jar /opt/game/game-backend-0.0.1-SNAPSHOT.jar
+ExecStart=/usr/bin/java -jar -Dspring.profiles.active=prod -Dspring.config.location=/opt/game/application-prod.properties /opt/game/game-backend-0.0.1-SNAPSHOT.jar
 SuccessExitStatus=143
+StandardOutput=journal
+StandardError=journal
 Restart=always
 RestartSec=10
 
-Environment="SPRING_PROFILES_ACTIVE=prod"
-Environment="CORS_ORIGINS=https://your-frontend-domain.com"
+# Environment Variables
+Environment="JAVA_OPTS=-Xmx512m -Xms256m"
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+### 2.6. Start Backend Service
+
 ```bash
-# Enable và start service
+# Reload systemd
 sudo systemctl daemon-reload
+
+# Enable service (auto start on boot)
 sudo systemctl enable game-backend
+
+# Start service
 sudo systemctl start game-backend
 
 # Check status
 sudo systemctl status game-backend
 
-# View logs
+# View logs (real-time)
 sudo journalctl -u game-backend -f
+
+# Test API locally
+curl http://localhost:8080/api/maps
 ```
 
-#### 3. Setup Nginx reverse proxy
+**Kết quả mong đợi:**
+```json
+[
+  {"id": "1", "name": "Map 1", "width": 10, "height": 5},
+  {"id": "2", "name": "Map 2", "width": 15, "height": 8}
+]
+```
 
+**Nếu có lỗi:**
 ```bash
-# Cài Nginx
-apt install nginx -y
+# Check logs chi tiết
+sudo journalctl -u game-backend -n 100 --no-pager
 
-# Cấu hình
-sudo nano /etc/nginx/sites-available/game-backend
-```
+# Check JAR file có đúng không
+ls -lh /opt/game/*.jar
 
-**File cấu hình:**
-```nginx
-server {
-    listen 80;
-    server_name api.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-```bash
-# Enable site
-sudo ln -s /etc/nginx/sites-available/game-backend /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+# Test chạy trực tiếp (debug)
+cd /opt/game
+java -jar game-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
 ```
 
 ---
 
-## 🎨 Deploy Frontend
+## ⚛️ BƯỚC 3: Deploy Frontend React
 
-### A. Deploy lên Vercel (Recommended)
+### 3.1. Install Node.js và npm
 
-#### 1. Chuẩn bị project
+```bash
+# Install Node.js 18.x LTS
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
 
-**Tạo `vercel.json` trong thư mục `frontend/`:**
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
-}
+# Verify installation
+node --version  # v18.x.x
+npm --version   # 9.x.x
 ```
 
-**Cập nhật `src/services/api.js`:**
+### 3.2. Build Frontend trên Server
+
+**Option A: Upload build folder từ local (Nhanh hơn)**
+
+```bash
+# Trên máy local, từ thư mục game-webapp/frontend/
+npm run build
+
+# Upload build folder
+scp -r build/* gameadmin@152.42.196.25:/tmp/frontend-build/
+
+# Trên server
+sudo mkdir -p /var/www/html
+sudo cp -r /tmp/frontend-build/* /var/www/html/
+sudo chown -R www-data:www-data /var/www/html
+```
+
+**Option B: Build trên server (Khuyến nghị cho update sau này)**
+
+```bash
+# Clone repository nếu chưa có
+cd ~
+git clone https://github.com/yourusername/game-webapp.git
+cd game-webapp/frontend
+
+# Install dependencies
+npm install
+
+# Tạo .env.production
+nano .env.production
+```
+
+**File `.env.production`:**
+```env
+REACT_APP_API_URL=http://152.42.196.25
+```
+
+**Lưu ý:** Sau khi cài SSL và domain, update thành:
+```env
+REACT_APP_API_URL=https://prj1mg.me 
+```
+
+```bash
+# Build production
+npm run build
+
+# Copy to web root
+sudo rm -rf /var/www/html/*
+sudo cp -r build/* /var/www/html/
+sudo chown -R www-data:www-data /var/www/html
+```
+
+### 3.3. Cập nhật API URL trong Frontend
+
+**Cập nhật `src/services/api.js` (nếu chưa có environment variable support):**
+
+Trên local, sửa file:
 ```javascript
 import axios from 'axios';
 
-// Sử dụng environment variable
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+// Sử dụng environment variable hoặc fallback
+const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -384,467 +539,1468 @@ export const findPath = (tiles, width, height, algorithm) => {
   return api.post('/pathfinding', { tiles, width, height, algorithm });
 };
 
-// Export base URL cho images
 export const getImageUrl = (filename) => `${API_BASE_URL}/api/images/${filename}`;
 
 export default api;
 ```
 
-**Cập nhật `GameBoard.js` để sử dụng dynamic URL:**
-```javascript
-import { getImageUrl } from '../services/api';
+Rebuild và upload lại nếu cần.
 
-// Trong renderTileContent:
-if (playerPosition && playerPosition.row === rowIndex && playerPosition.col === colIndex) {
-  return <img src={getImageUrl('mario.jpeg')} alt="Player" className="player-marker-image" />;
+---
+
+## 🌐 BƯỚC 4: Cấu hình Nginx Reverse Proxy
+
+### 4.1. Cài đặt Nginx
+
+```bash
+# Install Nginx
+sudo apt install nginx -y
+
+# Start Nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+
+# Check status
+sudo systemctl status nginx
+
+# Test: Truy cập http://152.42.196.25 trên browser
+# Sẽ thấy "Welcome to nginx" page
+```
+
+### 4.2. Cấu hình Nginx cho Application
+
+```bash
+# Xóa default config
+sudo rm /etc/nginx/sites-enabled/default
+
+# Tạo config mới
+sudo nano /etc/nginx/sites-available/game-webapp
+```
+
+**Nội dung file `/etc/nginx/sites-available/game-webapp`:**
+
+```nginx
+# HTTP Server Block
+server {
+    listen 80;
+    listen [::]:80;
+    
+    server_name 152.42.196.25 prj1mg.me  www.prj1mg.me ;
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Root directory for React build
+    root /var/www/html;
+    index index.html;
+    
+    # Client max body size (nếu cần upload files)
+    client_max_body_size 10M;
+    
+    # Serve static files (React build)
+    location / {
+        try_files $uri $uri/ /index.html;
+        
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+    
+    # Proxy API requests to Spring Boot backend
+    location /api/ {
+        proxy_pass http://localhost:8080/api/;
+        proxy_http_version 1.1;
+        
+        # Proxy headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $server_name;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Buffering
+        proxy_buffering off;
+    }
+    
+    # Access and error logs
+    access_log /var/log/nginx/game-webapp-access.log;
+    error_log /var/log/nginx/game-webapp-error.log;
 }
-
-if (tile === 'x') {
-  if (isAnimating && playerPosition && !(playerPosition.row === rowIndex && playerPosition.col === colIndex)) {
-    return null;
-  }
-  return <img src={getImageUrl('mario.jpeg')} alt="Start" className="tile-image" />;
-} else if (tile === 'y') {
-  return <img src={getImageUrl('diamond.jpg')} alt="End" className="tile-image" />;
-}
 ```
 
-**Tạo file `.env.production` trong `frontend/`:**
-```env
-REACT_APP_API_URL=https://your-backend.railway.app
-```
+**Giải thích cấu hình:**
+- `listen 80` - Lắng nghe HTTP port 80
+- `root /var/www/html` - Thư mục chứa React build
+- `location /` - Serve React SPA, rewrite tất cả routes về index.html
+- `location /api/` - Proxy tất cả API requests tới Spring Boot backend (localhost:8080)
+- Cache static files (JS, CSS, images) trong 1 năm
 
-#### 2. Deploy lên Vercel
+### 4.3. Enable và Test Configuration
 
 ```bash
-# Cài Vercel CLI
-npm install -g vercel
+# Tạo symbolic link để enable site
+sudo ln -s /etc/nginx/sites-available/game-webapp /etc/nginx/sites-enabled/
 
-# Login
-vercel login
+# Test configuration syntax
+sudo nginx -t
 
-# Deploy
-cd frontend
-vercel
+# Reload Nginx
+sudo systemctl reload nginx
 
-# Hoặc deploy qua Web UI:
-# 1. Push code lên GitHub
-# 2. Truy cập https://vercel.com
-# 3. Import project từ GitHub
-# 4. Chọn thư mục: frontend
-# 5. Set environment variable: REACT_APP_API_URL
-# 6. Deploy
+# Check status
+sudo systemctl status nginx
 ```
 
-#### 3. Cấu hình Environment Variables trên Vercel
-
-Trong Vercel Dashboard → Settings → Environment Variables:
+**Kết quả mong đợi từ `nginx -t`:**
 ```
-REACT_APP_API_URL=https://your-backend.railway.app
-```
-
-### B. Deploy lên Netlify
-
-#### 1. Chuẩn bị
-
-**Tạo `netlify.toml` trong `frontend/`:**
-```toml
-[build]
-  base = "frontend"
-  command = "npm run build"
-  publish = "build"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[build.environment]
-  REACT_APP_API_URL = "https://your-backend.railway.app"
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
 ```
 
-#### 2. Deploy
+### 4.4. Test Application
 
 ```bash
-# Cài Netlify CLI
-npm install -g netlify-cli
+# Test từ server
+curl http://localhost/api/maps
 
-# Login
-netlify login
-
-# Deploy
-cd frontend
-netlify deploy --prod
-
-# Hoặc qua Web UI:
-# 1. Push lên GitHub
-# 2. https://app.netlify.com → New site from Git
-# 3. Chọn repo → Chọn thư mục frontend
-# 4. Build command: npm run build
-# 5. Publish directory: build
-# 6. Environment variables: REACT_APP_API_URL
+# Test từ browser
+# Mở: http://152.42.196.25
+# Application sẽ load và có thể:
+# - Chọn maps
+# - Chỉnh sửa map
+# - Chạy thuật toán pathfinding
 ```
 
-### C. Deploy lên AWS S3 + CloudFront
-
-#### 1. Build production
-
+**Nếu có lỗi 502 Bad Gateway:**
 ```bash
-cd frontend
-REACT_APP_API_URL=https://your-backend.railway.app npm run build
-```
+# Check backend đang chạy
+sudo systemctl status game-backend
 
-#### 2. Upload lên S3
+# Check backend logs
+sudo journalctl -u game-backend -n 50
 
-```bash
-# Cài AWS CLI
-# Windows: https://aws.amazon.com/cli/
-
-# Configure AWS
-aws configure
-
-# Tạo S3 bucket
-aws s3 mb s3://your-game-frontend
-
-# Upload build folder
-aws s3 sync build/ s3://your-game-frontend --delete
-
-# Enable static website hosting
-aws s3 website s3://your-game-frontend --index-document index.html --error-document index.html
-```
-
-#### 3. Setup CloudFront (Optional - cho CDN)
-
-```bash
-# Tạo CloudFront distribution qua AWS Console
-# Origin: S3 bucket
-# Default cache behavior: Redirect HTTP to HTTPS
-# Custom error pages: 404 → /index.html (cho SPA routing)
+# Check Nginx error logs
+sudo tail -f /var/log/nginx/game-webapp-error.log
 ```
 
 ---
 
-## 🔒 Cấu hình Domain và SSL
+## 🔒 BƯỚC 5: Cài đặt SSL Certificate
 
-### 1. Mua Domain
+### 5.1. Cài đặt Certbot
 
-**Nhà cung cấp:**
-- Namecheap (Rẻ, dễ dùng)
-- GoDaddy
-- Google Domains
-- Tên miền Việt Nam: .vn, .com.vn (VNNIC)
-
-### 2. Cấu hình DNS
-
-**Trên Domain provider (ví dụ Namecheap):**
-
-```
-Type    Host        Value                           TTL
-A       @           IP-cua-backend-server           Automatic
-CNAME   www         your-app.vercel.app             Automatic
-CNAME   api         your-backend.railway.app        Automatic
-```
-
-**Hoặc nếu dùng Vercel/Netlify cho frontend:**
-```
-Type    Host        Value                           TTL
-CNAME   @           cname.vercel-dns.com            Automatic
-CNAME   www         cname.vercel-dns.com            Automatic
-CNAME   api         your-backend.railway.app        Automatic
-```
-
-### 3. SSL Certificate
-
-**Option A: Tự động (Vercel/Netlify/Railway)**
-- SSL tự động enable khi add custom domain
-- Let's Encrypt certificate tự động renew
-
-**Option B: Certbot (cho VPS)**
 ```bash
-# Cài Certbot
-apt install certbot python3-certbot-nginx -y
+# Install Certbot và Nginx plugin
+sudo apt install certbot python3-certbot-nginx -y
 
+# Verify installation
+certbot --version
+```
+
+### 5.2. Obtain SSL Certificate
+
+**Điều kiện:** Domain đã trỏ về Droplet IP (làm ở Bước 6 trước)
+
+```bash
 # Generate certificate
-certbot --nginx -d yourdomain.com -d www.yourdomain.com -d api.yourdomain.com
+sudo certbot --nginx -d prj1mg.me  -d www.prj1mg.me 
 
-# Auto renew
-certbot renew --dry-run
+# Certbot sẽ hỏi:
+# 1. Email address (cho renewal notifications): your-email@example.com
+# 2. Agree to Terms of Service: Yes (Y)
+# 3. Share email with EFF: No (N) - tùy chọn
+# 4. Redirect HTTP to HTTPS: Yes (2) - Chọn option 2
 ```
 
-### 4. Cập nhật CORS trong Backend
+**Certbot sẽ tự động:**
+- Generate SSL certificate
+- Modify Nginx config để enable HTTPS
+- Setup auto-renewal (certificate valid 90 days)
 
-**File `application-prod.properties`:**
-```properties
-cors.allowed.origins=https://yourdomain.com,https://www.yourdomain.com
+### 5.3. Verify SSL Installation
+
+```bash
+# Check Nginx config sau khi Certbot sửa
+sudo cat /etc/nginx/sites-available/game-webapp
+
+# Test Nginx config
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
 ```
 
-**Hoặc trong `CorsConfig.java`:**
-```java
-@Override
-public void addCorsMappings(CorsRegistry registry) {
-    String allowedOrigins = environment.getProperty("cors.allowed.origins", 
-        "https://yourdomain.com,https://www.yourdomain.com");
+**File config sẽ được Certbot thêm các dòng:**
+```nginx
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     
-    registry.addMapping("/api/**")
-            .allowedOrigins(allowedOrigins.split(","))
-            .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-            .allowedHeaders("*")
-            .allowCredentials(true);
+    server_name prj1mg.me  www.prj1mg.me ;
+    
+    ssl_certificate /etc/letsencrypt/live/prj1mg.me /fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/prj1mg.me /privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    # ... rest of config ...
+}
+
+# HTTP to HTTPS redirect
+server {
+    listen 80;
+    listen [::]:80;
+    
+    server_name prj1mg.me  www.prj1mg.me ;
+    
+    return 301 https://$server_name$request_uri;
 }
 ```
+
+### 5.4. Test HTTPS
+
+```bash
+# Test từ command line
+curl https://prj1mg.me /api/maps
+
+# Test trong browser
+# Mở: https://prj1mg.me 
+# Kiểm tra:
+# ✓ Padlock icon hiển thị
+# ✓ Certificate valid
+# ✓ No mixed content warnings
+```
+
+**Check SSL quality:**
+- Truy cập: https://www.ssllabs.com/ssltest/
+- Nhập domain: prj1mg.me 
+- Đợi kết quả (grade A/A+ là tốt)
+
+### 5.5. Setup Auto-Renewal
+
+```bash
+# Certbot tự động setup systemd timer
+sudo systemctl status certbot.timer
+
+# Test renewal (dry-run)
+sudo certbot renew --dry-run
+
+# Nếu thành công, certificate sẽ tự động renew trước khi expire
+```
+
+**Manual renewal nếu cần:**
+```bash
+sudo certbot renew
+sudo systemctl reload nginx
+```
+
+### 5.6. Update Frontend API URL
+
+Sau khi có HTTPS, cập nhật `.env.production`:
+
+```bash
+cd ~/game-webapp/frontend
+nano .env.production
+```
+
+**Update to:**
+```env
+REACT_APP_API_URL=https://prj1mg.me 
+```
+
+```bash
+# Rebuild
+npm run build
+
+# Deploy
+sudo cp -r build/* /var/www/html/
+sudo systemctl reload nginx
+```
+
+### 5.7. Update CORS trong Backend
+
+```bash
+# Edit application-prod.properties
+sudo nano /opt/game/application-prod.properties
+```
+
+**Update CORS:**
+```properties
+cors.allowed.origins=https://prj1mg.me ,https://www.prj1mg.me 
+```
+
+```bash
+# Restart backend
+sudo systemctl restart game-backend
+
+# Verify
+sudo systemctl status game-backend
+```
+
+---
+
+## 🌍 BƯỚC 6: Cấu hình Domain (prj1mg.me từ Namecheap)
+
+### 6.1. Chuẩn bị thông tin
+
+**Domain:** prj1mg.me  
+**Server IP:** 152.42.196.25  
+**Registrar:** Namecheap
+
+### 6.2. Cấu hình DNS Records trên Namecheap
+
+#### Bước 1: Đăng nhập Namecheap
+
+1. Truy cập: https://www.namecheap.com/
+2. Đăng nhập với tài khoản của bạn
+3. Vào **Dashboard** → **Domain List**
+4. Click **Manage** bên cạnh domain `prj1mg.me`
+
+#### Bước 2: Chọn DNS Settings
+
+1. Trong trang domain management, tìm phần **NAMESERVERS**
+2. Đảm bảo đang dùng: **Namecheap BasicDNS** (mặc định)
+   - Nếu đang dùng Custom DNS, đổi về BasicDNS
+3. Click tab **Advanced DNS**
+
+#### Bước 3: Thêm DNS Records
+
+Trong phần **HOST RECORDS**, thêm các records sau:
+
+**Record 1 - Root domain (@):**
+```
+Type: A Record
+Host: @
+Value: 152.42.196.25
+TTL: Automatic
+```
+
+**Record 2 - WWW subdomain:**
+```
+Type: A Record  
+Host: www
+Value: 152.42.196.25
+TTL: Automatic
+```
+
+**Record 3 - Optional API subdomain:**
+```
+Type: A Record
+Host: api
+Value: 152.42.196.25
+TTL: Automatic
+```
+
+#### Bước 4: Xóa các records không cần thiết
+
+Namecheap thường tạo sẵn một số records mặc định. **Xóa các records sau nếu có:**
+- CNAME Record với Host là `www` trỏ đến parking page
+- URL Redirect Records
+- Bất kỳ A Record nào trỏ đến IP khác
+
+**Chỉ giữ lại:**
+- 2 A Records bạn vừa tạo (@ và www → 152.42.196.25)
+- Records cho email (nếu có dùng email)
+
+#### Hình ảnh minh họa cấu hình
+
+Sau khi hoàn tất, HOST RECORDS của bạn sẽ trông như thế này:
+
+```
+┌──────────┬──────┬─────────────────┬───────────┐
+│ Type     │ Host │ Value           │ TTL       │
+├──────────┼──────┼─────────────────┼───────────┤
+│ A Record │ @    │ 152.42.196.25   │ Automatic │
+│ A Record │ www  │ 152.42.196.25   │ Automatic │
+└──────────┴──────┴─────────────────┴───────────┘
+```
+
+#### Lưu ý về TTL
+
+- **Automatic TTL** của Namecheap = 1800 seconds (30 phút)
+- Trong quá trình testing, có thể để 300 seconds (5 phút) để thay đổi nhanh hơn
+- Sau khi stable, nên để 3600 seconds (1 giờ) hoặc 14400 (4 giờ)
+
+### 6.3. Verify DNS Propagation
+
+DNS thường mất **5-30 phút** để propagate globally, tối đa 48 giờ.
+
+#### A. Kiểm tra từ máy local
+
+**Trên Windows PowerShell:**
+```powershell
+# Check root domain
+nslookup prj1mg.me
+
+# Check www subdomain  
+nslookup www.prj1mg.me
+
+# Hoặc dùng Resolve-DnsName
+Resolve-DnsName prj1mg.me
+Resolve-DnsName www.prj1mg.me
+```
+
+**Kết quả mong đợi:**
+```
+Server:  dns.google
+Address:  8.8.8.8
+
+Name:    prj1mg.me
+Address: 152.42.196.25
+```
+
+**Trên Linux/Mac/Git Bash:**
+```bash
+# Check với dig
+dig prj1mg.me
+dig www.prj1mg.me
+
+# Hoặc host
+host prj1mg.me
+host www.prj1mg.me
+```
+
+#### B. Kiểm tra DNS từ nhiều locations
+
+Truy cập các tools online để check từ nhiều DNS servers khác nhau:
+
+1. **DNSChecker.org** (Khuyến nghị)
+   - URL: https://dnschecker.org
+   - Nhập: `prj1mg.me`
+   - Xem kết quả từ 20+ locations worldwide
+   - Tất cả phải trả về: `152.42.196.25`
+
+2. **WhatsMyDNS.net**
+   - URL: https://www.whatsmydns.net
+   - Check: `prj1mg.me` và `www.prj1mg.me`
+
+3. **Google DNS Checker**
+   ```bash
+   # Trên terminal
+   nslookup prj1mg.me 8.8.8.8
+   nslookup prj1mg.me 1.1.1.1
+   ```
+
+#### C. Flush DNS Cache (nếu cần)
+
+Nếu domain chưa resolve sau 10-15 phút:
+
+**Windows:**
+```powershell
+ipconfig /flushdns
+```
+
+**Mac:**
+```bash
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+```
+
+**Linux:**
+```bash
+sudo systemd-resolve --flush-caches
+# Hoặc
+sudo /etc/init.d/nscd restart
+```
+
+### 6.3.1. Test Domain Resolution trên Server
+
+SSH vào server và test:
+```bash
+ssh gameadmin@152.42.196.25
+
+# Test ping từ server
+ping -c 4 prj1mg.me
+
+# Test DNS lookup
+nslookup prj1mg.me
+```
+
+### 6.4. Update Nginx Config với Domain
+
+### 6.4. Update Nginx Config với Domain
+
+Sau khi DNS đã propagate (resolve đúng IP), cập nhật Nginx config:
+
+```bash
+# SSH vào server
+ssh gameadmin@152.42.196.25
+
+# Edit Nginx config
+sudo nano /etc/nginx/sites-available/game-webapp
+```
+
+**Tìm dòng `server_name` và cập nhật:**
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    
+    # Thêm domain vào server_name
+    server_name prj1mg.me www.prj1mg.me 152.42.196.25;
+    
+    # ... rest of config
+}
+```
+
+**Test và reload Nginx:**
+```bash
+# Test cấu hình
+sudo nginx -t
+
+# Nếu OK, reload Nginx
+sudo systemctl reload nginx
+
+# Check status
+sudo systemctl status nginx
+```
+
+### 6.5. Test Domain truy cập Web
+
+#### A. Test HTTP (trước khi cài SSL)
+
+**Từ browser:**
+```
+http://prj1mg.me
+http://www.prj1mg.me
+```
+
+**Từ command line:**
+```bash
+# Trên local machine
+curl -I http://prj1mg.me
+
+# Nên thấy: HTTP/1.1 200 OK
+```
+
+#### B. Test API endpoints
+
+```bash
+# Test backend API
+curl http://prj1mg.me/api/maps
+curl http://www.prj1mg.me/api/maps
+
+# Nên trả về JSON list maps
+```
+
+### 6.6. Update Frontend Environment (Quan trọng!)
+
+Sau khi domain hoạt động, cập nhật frontend để sử dụng domain thay vì IP:
+
+#### Trên local machine:
+
+```bash
+cd d:\2025.2\Project 1\game-webapp\frontend
+
+# Tạo/Edit file .env.production
+notepad .env.production
+```
+
+**Nội dung file `.env.production`:**
+```env
+# Sử dụng domain thay vì IP
+REACT_APP_API_URL=http://prj1mg.me
+```
+
+**Rebuild và deploy lại frontend:**
+```powershell
+# Build lại với env mới
+npm run build
+
+# Upload lên server
+scp -r build/* gameadmin@152.42.196.25:/tmp/frontend-new/
+
+# Trên server, deploy
+ssh gameadmin@152.42.196.25
+sudo cp -r /tmp/frontend-new/* /var/www/html/
+sudo chown -R www-data:www-data /var/www/html
+rm -rf /tmp/frontend-new
+
+# Clear browser cache và test lại
+```
+
+### 6.7. Cài đặt SSL Certificate (QUAN TRỌNG - Làm ngay sau khi domain hoạt động)
+
+**Yêu cầu:** DNS đã propagate (bước 6.3 đã pass)
+
+```bash
+# SSH vào server
+ssh gameadmin@152.42.196.25
+
+# Cài đặt Certbot nếu chưa có
+sudo apt install certbot python3-certbot-nginx -y
+
+# Generate SSL certificate
+sudo certbot --nginx -d prj1mg.me -d www.prj1mg.me
+```
+
+**Certbot sẽ hỏi:**
+```
+Enter email address (for renewal notifications): your-email@example.com
+[Enter]
+
+Agree to Terms of Service: Y
+Share email with EFF: N (tùy chọn)
+
+Select redirect HTTP to HTTPS:
+1: No redirect
+2: Redirect - Make all requests redirect to secure HTTPS access
+Select: 2 [Enter]
+```
+
+**Output mong đợi:**
+```
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/prj1mg.me/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/prj1mg.me/privkey.pem
+This certificate expires on 2026-03-19.
+```
+
+### 6.8. Verify SSL Installation
+
+```bash
+# Check nginx config sau khi Certbot modify
+sudo cat /etc/nginx/sites-available/game-webapp
+
+# Test config
+sudo nginx -t
+
+# Reload
+sudo systemctl reload nginx
+```
+
+**Nginx config sẽ có thêm HTTPS server block:**
+```nginx
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    
+    server_name prj1mg.me www.prj1mg.me;
+    
+    ssl_certificate /etc/letsencrypt/live/prj1mg.me/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/prj1mg.me/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    # Location blocks...
+}
+
+# HTTP redirect to HTTPS
+server {
+    listen 80;
+    server_name prj1mg.me www.prj1mg.me;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+### 6.9. Update Frontend cho HTTPS
+
+```bash
+# Trên local machine
+cd d:\2025.2\Project 1\game-webapp\frontend
+
+# Update .env.production
+notepad .env.production
+```
+
+**Đổi thành HTTPS:**
+```env
+REACT_APP_API_URL=https://prj1mg.me
+```
+
+**Rebuild và deploy:**
+```powershell
+npm run build
+scp -r build/* gameadmin@152.42.196.25:/tmp/frontend-ssl/
+ssh gameadmin@152.42.196.25 "sudo cp -r /tmp/frontend-ssl/* /var/www/html/ && sudo chown -R www-data:www-data /var/www/html && rm -rf /tmp/frontend-ssl"
+```
+
+### 6.10. Update Backend CORS cho HTTPS
+
+```bash
+# SSH vào server
+ssh gameadmin@152.42.196.25
+
+# Edit application-prod.properties
+sudo nano /opt/game/application-prod.properties
+```
+
+**Update CORS origins:**
+```properties
+cors.allowed.origins=https://prj1mg.me,https://www.prj1mg.me
+```
+
+**Restart backend:**
+```bash
+sudo systemctl restart game-backend
+sudo systemctl status game-backend
+```
+
+### 6.11. Final Testing với HTTPS
+
+#### A. Test HTTPS Website
+
+**Từ browser:**
+```
+https://prj1mg.me
+https://www.prj1mg.me
+```
+
+**Kiểm tra:**
+- ✅ Padlock icon hiển thị (bảo mật)
+- ✅ Certificate valid
+- ✅ HTTP tự động redirect sang HTTPS
+- ✅ Không có Mixed Content warnings
+- ✅ Game hoạt động bình thường
+
+#### B. Test SSL Quality
+
+**SSL Labs Test:**
+1. Truy cập: https://www.ssllabs.com/ssltest/
+2. Nhập: `prj1mg.me`
+3. Đợi kết quả (2-3 phút)
+4. Mong đợi: **Grade A** hoặc **A+**
+
+#### C. Test API với HTTPS
+
+```bash
+# Test từ command line
+curl https://prj1mg.me/api/maps
+curl https://www.prj1mg.me/api/maps
+
+# Test trong browser console (F12)
+fetch('https://prj1mg.me/api/maps')
+  .then(r => r.json())
+  .then(d => console.log(d));
+```
+
+### 6.12. Setup SSL Auto-Renewal
+
+Certbot tự động cài đặt systemd timer cho renewal.
+
+**Verify auto-renewal:**
+```bash
+# Check certbot timer
+sudo systemctl status certbot.timer
+
+# Test renewal (dry-run - không thực sự renew)
+sudo certbot renew --dry-run
+```
+
+**Output mong đợi:**
+```
+Congratulations, all simulated renewals succeeded:
+  /etc/letsencrypt/live/prj1mg.me/fullchain.pem (success)
+```
+
+**Certificate sẽ tự động renew 30 ngày trước khi expire.**
+
+**Manual renewal nếu cần:**
+```bash
+sudo certbot renew
+sudo systemctl reload nginx
+```
+
+### 6.13. Checklist Hoàn thành Domain Setup
+
+- [ ] DNS A Records đã cấu hình trên Namecheap (@ và www)
+- [ ] DNS đã propagate (nslookup trả về đúng IP)
+- [ ] Nginx config đã thêm server_name domain
+- [ ] Domain truy cập được qua HTTP
+- [ ] SSL certificate đã cài đặt thành công
+- [ ] HTTPS hoạt động, HTTP redirect sang HTTPS
+- [ ] Frontend đã rebuild với HTTPS URL
+- [ ] Backend CORS đã update cho HTTPS
+- [ ] Game hoạt động hoàn toàn trên HTTPS
+- [ ] SSL auto-renewal đã verify
+
+### 6.14. Troubleshooting Domain Issues
+
+#### Lỗi: Domain không resolve
+
+**Nguyên nhân:**
+- DNS chưa propagate
+- DNS records cấu hình sai
+- ISP cache DNS cũ
+
+**Giải pháp:**
+```bash
+# Đợi thêm 10-30 phút
+# Flush DNS cache local
+ipconfig /flushdns  # Windows
+
+# Test với Google DNS
+nslookup prj1mg.me 8.8.8.8
+
+# Check DNS trên dnschecker.org
+```
+
+#### Lỗi: "ERR_TOO_MANY_REDIRECTS"
+
+**Nguyên nhân:** Loop redirect giữa HTTP và HTTPS
+
+**Giải pháp:**
+```bash
+# Check nginx config
+sudo nano /etc/nginx/sites-available/game-webapp
+
+# Đảm bảo chỉ có 1 server block port 80 với redirect
+# Xóa các dòng redirect duplicate
+
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### Lỗi: SSL Certificate generation failed
+
+**Nguyên nhân:** DNS chưa point đến server
+
+**Giải pháp:**
+```bash
+# Đảm bảo DNS đã resolve
+nslookup prj1mg.me
+
+# Đảm bảo port 80 open và Nginx đang chạy
+sudo ufw status
+sudo systemctl status nginx
+
+# Retry Certbot
+sudo certbot --nginx -d prj1mg.me -d www.prj1mg.me
+```
+
+#### Lỗi: Mixed Content warnings
+
+**Nguyên nhân:** Frontend gọi API qua HTTP trong HTTPS page
+
+**Giải pháp:**
+```bash
+# Đảm bảo .env.production dùng https://
+REACT_APP_API_URL=https://prj1mg.me
+
+# Rebuild frontend
+npm run build
+
+# Redeploy
+```
+
+### 6.15. Domain Management Tips
+
+#### A. Renew Domain trước khi hết hạn
+
+- Namecheap sẽ email nhắc trước 30-60 ngày
+- Enable auto-renewal trong Namecheap dashboard
+- Domain thường expire sau 1 năm
+
+#### B. DNS Management Best Practices
+
+- **Không xóa** DNS records đang dùng khi production
+- Test thay đổi DNS với subdomain test trước
+- Sau khi stable, tăng TTL lên 3600 hoặc 14400
+- Backup DNS records (screenshot hoặc note lại)
+
+#### C. Subdomain cho môi trường khác
+
+Nếu muốn có môi trường staging:
+
+**Thêm subdomain:**
+```
+Type: A Record
+Host: staging
+Value: <STAGING_SERVER_IP>
+TTL: Automatic
+```
+
+Access: `https://staging.prj1mg.me`
 
 ---
 
 ## 📊 Monitoring và Maintenance
 
-### 1. Health Check Endpoints
+### 7.1. Setup Basic Monitoring
 
-**Thêm vào `MapController.java`:**
+#### A. System Resource Monitoring
+
+```bash
+# Install htop
+sudo apt install htop -y
+
+# Monitor realtime
+htop
+
+# Check disk usage
+df -h
+
+# Check memory
+free -h
+
+# Check running processes
+ps aux | grep java
+```
+
+#### B. Application Logs
+
+```bash
+# Backend logs (systemd journal)
+sudo journalctl -u game-backend -f
+
+# Hoặc từ file (nếu cấu hình)
+tail -f /opt/game/logs/application.log
+
+# Nginx access logs
+tail -f /var/log/nginx/game-webapp-access.log
+
+# Nginx error logs
+tail -f /var/log/nginx/game-webapp-error.log
+```
+
+#### C. Setup Log Rotation
+
+Nginx logs đã tự động rotate. Cho backend logs:
+
+```bash
+sudo nano /etc/logrotate.d/game-backend
+```
+
+**Nội dung:**
+```
+/opt/game/logs/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 gameadmin gameadmin
+    sharedscripts
+    postrotate
+        systemctl reload game-backend > /dev/null 2>&1 || true
+    endscript
+}
+```
+
+### 7.2. Health Check Endpoint
+
+**Thêm vào Backend (optional):**
+
+Trong `MapController.java`:
 ```java
 @GetMapping("/health")
 public ResponseEntity<Map<String, String>> health() {
     Map<String, String> status = new HashMap<>();
     status.put("status", "UP");
     status.put("timestamp", LocalDateTime.now().toString());
+    status.put("version", "1.0.0");
     return ResponseEntity.ok(status);
 }
 ```
 
-### 2. Logging
-
-**Production logging (application-prod.properties):**
-```properties
-# Log level
-logging.level.root=WARN
-logging.level.com.game=INFO
-
-# Log file
-logging.file.name=logs/game-backend.log
-logging.file.max-size=10MB
-logging.file.max-history=7
-```
-
-### 3. Monitoring Tools
-
-**Free options:**
-- **UptimeRobot**: Monitor uptime, alert khi down
-- **Google Analytics**: Track frontend usage
-- **Railway/Heroku Metrics**: Built-in metrics
-- **CloudWatch** (AWS): Logs và metrics
-
-**Setup UptimeRobot:**
-```
-1. Đăng ký https://uptimerobot.com (Free)
-2. Add Monitor:
-   - Type: HTTPS
-   - URL: https://api.yourdomain.com/api/health
-   - Interval: 5 minutes
-3. Add Alert Contacts (Email, SMS)
-```
-
-### 4. Backup Strategy
-
-**Backend data:**
+**Test:**
 ```bash
-# Backup script (chạy định kỳ)
+curl https://prj1mg.me /api/health
+```
+
+### 7.3. External Monitoring với UptimeRobot
+
+1. **Đăng ký miễn phí:** https://uptimerobot.com
+2. **Add New Monitor:**
+   - Monitor Type: HTTPS
+   - Friendly Name: Game Webapp
+   - URL: `https://prj1mg.me /api/health`
+   - Monitoring Interval: 5 minutes
+3. **Alert Contacts:** Add email/SMS
+4. **Save**
+
+UptimeRobot sẽ gửi alert khi site down.
+
+### 7.4. Performance Monitoring
+
+```bash
+# Check Nginx connections
+sudo netstat -an | grep :80 | wc -l
+sudo netstat -an | grep :443 | wc -l
+
+# Check backend performance
+# Install jconsole hoặc dùng Spring Boot Actuator (production-ready features)
+```
+
+### 7.5. Security Updates
+
+```bash
+# Setup unattended-upgrades (auto security updates)
+sudo apt install unattended-upgrades -y
+sudo dpkg-reconfigure -plow unattended-upgrades
+# Chọn "Yes"
+
+# Manual update
+sudo apt update
+sudo apt upgrade -y
+
+# Check if reboot needed
+[ -f /var/run/reboot-required ] && echo "Reboot required" || echo "No reboot needed"
+```
+
+---
+
+## 💾 Backup và Rollback
+
+### 8.1. Backup Strategy
+
+#### A. Backup Script
+
+```bash
+# Tạo backup script
+sudo nano /opt/game/backup.sh
+```
+
+**Nội dung:**
+```bash
 #!/bin/bash
+
+# Configuration
+BACKUP_DIR="/home/gameadmin/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
-tar -czf backup_$DATE.tar.gz /opt/game/data/
-# Upload to S3 or Google Drive
-aws s3 cp backup_$DATE.tar.gz s3://your-backup-bucket/
+BACKUP_NAME="game-webapp-backup-$DATE"
+
+# Create backup directory
+mkdir -p $BACKUP_DIR
+
+# Backup application files
+echo "Backing up application files..."
+tar -czf $BACKUP_DIR/$BACKUP_NAME-app.tar.gz \
+    /opt/game/game-backend-*.jar \
+    /opt/game/application-prod.properties \
+    /opt/game/data/
+
+# Backup frontend
+echo "Backing up frontend..."
+tar -czf $BACKUP_DIR/$BACKUP_NAME-frontend.tar.gz /var/www/html/
+
+# Backup Nginx config
+echo "Backing up Nginx config..."
+tar -czf $BACKUP_DIR/$BACKUP_NAME-nginx.tar.gz /etc/nginx/sites-available/game-webapp
+
+# Keep only last 7 backups
+echo "Cleaning old backups..."
+ls -t $BACKUP_DIR/*.tar.gz | tail -n +8 | xargs -r rm
+
+echo "Backup completed: $BACKUP_DIR/$BACKUP_NAME-*.tar.gz"
 ```
 
-**Frontend:**
-- Code đã có trên Git → Không cần backup riêng
-- Build artifacts có thể tái tạo từ code
-
----
-
-## 🔄 Rollback Strategy
-
-### 1. Backend Rollback
-
-**Railway/Heroku:**
 ```bash
-# Heroku - Rollback to previous release
-heroku releases
-heroku rollback v123
+# Make executable
+chmod +x /opt/game/backup.sh
 
-# Railway - Qua Web UI
-# Deployments → Chọn deployment trước → Redeploy
+# Test backup
+/opt/game/backup.sh
 ```
 
-**VPS:**
+#### B. Schedule Automated Backups
+
 ```bash
-# Keep multiple JAR versions
+# Add to crontab
+crontab -e
+```
+
+**Add line:**
+```cron
+# Daily backup at 2 AM
+0 2 * * * /opt/game/backup.sh >> /var/log/game-backup.log 2>&1
+```
+
+### 8.2. Rollback Procedure
+
+#### Rollback Backend
+
+```bash
+# Stop service
+sudo systemctl stop game-backend
+
+# Restore from backup
+cd /home/gameadmin/backups
+# List backups
+ls -lh
+
+# Extract backup
+sudo tar -xzf game-webapp-backup-20250115_020000-app.tar.gz -C /
+
+# Start service
+sudo systemctl start game-backend
+sudo systemctl status game-backend
+```
+
+#### Rollback Frontend
+
+```bash
+# Extract backup
+sudo tar -xzf game-webapp-backup-20250115_020000-frontend.tar.gz -C /
+
+# Reload Nginx
+sudo systemctl reload nginx
+```
+
+### 8.3. Keep Multiple Versions
+
+```bash
+# Structure for versioned deployments
 /opt/game/
-├── current -> game-backend-v1.2.0.jar
-├── game-backend-v1.2.0.jar
-├── game-backend-v1.1.0.jar
-└── game-backend-v1.0.0.jar
+├── releases/
+│   ├── v1.0.0/
+│   │   └── game-backend-1.0.0.jar
+│   ├── v1.1.0/
+│   │   └── game-backend-1.1.0.jar
+│   └── v1.2.0/
+│       └── game-backend-1.2.0.jar
+├── current -> releases/v1.2.0/game-backend-1.2.0.jar
+└── data/
 
-# Rollback
+# Rollback bằng cách change symlink
 cd /opt/game
-ln -sf game-backend-v1.1.0.jar current
-systemctl restart game-backend
-```
-
-### 2. Frontend Rollback
-
-**Vercel:**
-```bash
-# Qua Web UI: Deployments → Previous deployment → Promote to Production
-# Hoặc CLI:
-vercel rollback
-```
-
-**S3 + CloudFront:**
-```bash
-# Enable S3 versioning
-aws s3api put-bucket-versioning --bucket your-game-frontend --versioning-configuration Status=Enabled
-
-# Restore previous version khi cần
-aws s3api list-object-versions --bucket your-game-frontend
-# Copy old version back
+sudo ln -sfn releases/v1.1.0/game-backend-1.1.0.jar current
+sudo systemctl restart game-backend
 ```
 
 ---
 
-## 🚨 Troubleshooting Production Issues
+## 🐛 Troubleshooting
 
-### Issue 1: CORS Error
+### Issue 1: Backend không start
 
-**Triệu chứng:** Frontend không gọi được API, Console có lỗi CORS
+**Triệu chứng:**
+```bash
+sudo systemctl status game-backend
+# Output: failed, exit code 1
+```
 
 **Giải pháp:**
 ```bash
-# Kiểm tra CORS_ORIGINS environment variable
-# Railway: Settings → Variables
-# Heroku: heroku config
-# VPS: Kiểm tra application-prod.properties
+# Check logs chi tiết
+sudo journalctl -u game-backend -n 100 --no-pager
 
-# Test CORS bằng curl
-curl -H "Origin: https://yourdomain.com" \
-     -H "Access-Control-Request-Method: POST" \
-     -X OPTIONS \
-     https://api.yourdomain.com/api/maps -v
+# Common issues:
+# 1. Port 8080 đã được sử dụng
+sudo lsof -i :8080
+# Kill process nếu cần
+
+# 2. JAR file không tồn tại
+ls -lh /opt/game/*.jar
+
+# 3. Permission issues
+sudo chown gameadmin:gameadmin /opt/game -R
+
+# 4. Java version
+java -version  # Phải >= 17
+
+# Test run manually
+cd /opt/game
+java -jar game-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
 ```
 
-### Issue 2: Images không load
+### Issue 2: 502 Bad Gateway
+
+**Triệu chứng:** Browser hiển thị "502 Bad Gateway"
+
+**Giải pháp:**
+```bash
+# 1. Check backend running
+sudo systemctl status game-backend
+curl http://localhost:8080/api/health
+
+# 2. Check Nginx config
+sudo nginx -t
+
+# 3. Check Nginx logs
+sudo tail -50 /var/log/nginx/game-webapp-error.log
+
+# 4. Verify proxy_pass URL
+sudo grep proxy_pass /etc/nginx/sites-available/game-webapp
+# Should be: http://localhost:8080/api/
+
+# 5. Restart services
+sudo systemctl restart game-backend
+sudo systemctl reload nginx
+```
+
+### Issue 3: CORS Errors
+
+**Triệu chứng:** Console hiển thị:
+```
+Access to XMLHttpRequest at 'https://prj1mg.me /api/maps' has been blocked by CORS policy
+```
+
+**Giải pháp:**
+```bash
+# 1. Check CORS config
+sudo cat /opt/game/application-prod.properties | grep cors
+
+# 2. Update CORS origins
+sudo nano /opt/game/application-prod.properties
+# Add:
+cors.allowed.origins=https://prj1mg.me ,https://www.prj1mg.me 
+
+# 3. Restart backend
+sudo systemctl restart game-backend
+
+# 4. Test CORS
+curl -H "Origin: https://prj1mg.me " \
+     -H "Access-Control-Request-Method: POST" \
+     -X OPTIONS \
+     https://prj1mg.me /api/maps -v
+```
+
+### Issue 4: Images không load
 
 **Triệu chứng:** Mario và Diamond không hiển thị
 
 **Giải pháp:**
 ```bash
-# Kiểm tra data/img/ folder có được deploy không
-# Railway/Heroku: Commit vào Git
-git add backend/data/img/
-git commit -m "Add image files"
-git push
+# 1. Check files exist
+ls -lh /opt/game/data/img/
 
-# Hoặc chuyển sang S3
+# 2. Check permissions
+sudo chmod 644 /opt/game/data/img/*
+
+# 3. Test image endpoint
+curl -I https://prj1mg.me /api/images/mario.jpeg
+
+# 4. Check backend logs
+sudo journalctl -u game-backend | grep ImageController
 ```
 
-### Issue 3: Backend sleep/crash
+### Issue 5: SSL Certificate Errors
 
-**Triệu chứng:** API chậm hoặc không response (Railway free tier)
+**Triệu chứng:** "Your connection is not private" hoặc certificate expired
 
 **Giải pháp:**
 ```bash
-# Option 1: Upgrade plan
-# Option 2: Keep-alive ping
-# Tạo cron job ping /api/health mỗi 10 phút
+# 1. Check certificate expiry
+sudo certbot certificates
 
-# Option 3: Di chuyển sang VPS
+# 2. Renew certificate
+sudo certbot renew --force-renewal
+
+# 3. Check auto-renewal timer
+sudo systemctl status certbot.timer
+
+# 4. Test renewal
+sudo certbot renew --dry-run
+
+# 5. Reload Nginx
+sudo systemctl reload nginx
 ```
 
-### Issue 4: Build failed
+### Issue 6: Slow Performance
 
-**Triệu chứng:** Deploy lỗi khi build
+**Triệu chứng:** API response chậm, website load lâu
 
 **Giải pháp:**
 ```bash
-# Backend: Kiểm tra Java version
-java -version  # Phải match với system.properties
+# 1. Check system resources
+htop
+free -h
+df -h
 
-# Frontend: Clear cache và rebuild
-rm -rf node_modules package-lock.json
-npm install
-npm run build
+# 2. Check backend memory
+# Add to systemd service:
+sudo nano /etc/systemd/system/game-backend.service
+# Update:
+Environment="JAVA_OPTS=-Xmx768m -Xms256m"
 
-# Kiểm tra logs chi tiết
-# Railway: View logs tab
-# Vercel: Deployment → View function logs
+sudo systemctl daemon-reload
+sudo systemctl restart game-backend
+
+# 3. Enable Nginx caching (thêm vào nginx config)
+proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m max_size=100m inactive=60m;
+
+location /api/ {
+    proxy_cache api_cache;
+    proxy_cache_valid 200 5m;
+    # ... rest of config
+}
+
+# 4. Optimize frontend
+# Enable Gzip compression (thường đã có)
+sudo nano /etc/nginx/nginx.conf
+# Ensure:
+gzip on;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+```
+
+### Issue 7: Disk Space Full
+
+**Triệu chứng:**
+```bash
+df -h
+# Output: /dev/vda1 100% ...
+```
+
+**Giải pháp:**
+```bash
+# 1. Find large files
+sudo du -h /var/log | sort -rh | head -20
+sudo du -h /opt | sort -rh | head -20
+
+# 2. Clean logs
+sudo journalctl --vacuum-size=100M
+sudo truncate -s 0 /var/log/nginx/*.log
+
+# 3. Clean apt cache
+sudo apt clean
+sudo apt autoremove -y
+
+# 4. Remove old backups
+rm /home/gameadmin/backups/*.tar.gz
+
+# 5. Upgrade Droplet if needed
 ```
 
 ---
 
-## 📝 Checklist Deploy Production
+## 📋 Deployment Checklist
 
-### Pre-Deploy
-- [ ] Code đã commit và push lên Git
-- [ ] Build local thành công (backend + frontend)
-- [ ] Environment variables đã chuẩn bị
-- [ ] Domain đã mua (nếu cần)
-- [ ] Hosting accounts đã tạo
+### Pre-Deployment
+- [ ] Code tested locally
+- [ ] Backend builds successfully (`mvn clean package`)
+- [ ] Frontend builds successfully (`npm run build`)
+- [ ] GitHub repository updated
+- [ ] DigitalOcean account created
+- [ ] Domain purchased and ready
 
-### Deploy Backend
-- [ ] Deploy lên Railway/Heroku/VPS
-- [ ] Upload data files (maps, images)
-- [ ] Set environment variables (CORS_ORIGINS)
-- [ ] Test API endpoints
-- [ ] Verify images load được
+### Server Setup
+- [ ] Droplet created (Ubuntu 22.04)
+- [ ] SSH access configured
+- [ ] Firewall enabled (ports 22, 80, 443)
+- [ ] Non-root user created
+- [ ] Java 17 installed
+- [ ] Node.js installed
+- [ ] Nginx installed
 
-### Deploy Frontend
-- [ ] Update API_URL trong .env.production
-- [ ] Build production bundle
-- [ ] Deploy lên Vercel/Netlify
-- [ ] Test trên nhiều devices/browsers
-- [ ] Verify tất cả features hoạt động
+### Backend Deployment
+- [ ] JAR file uploaded to `/opt/game/`
+- [ ] Data files uploaded (maps, images)
+- [ ] `application-prod.properties` created
+- [ ] Systemd service created
+- [ ] Backend service started and enabled
+- [ ] API endpoint tested (`curl http://localhost:8080/api/maps`)
 
-### Post-Deploy
-- [ ] Configure custom domain
-- [ ] Enable SSL certificate
-- [ ] Setup monitoring (UptimeRobot)
-- [ ] Document deployment process
-- [ ] Create backup strategy
-- [ ] Test rollback procedure
+### Frontend Deployment
+- [ ] React build uploaded to `/var/www/html/`
+- [ ] API URL configured in `.env.production`
+- [ ] Static files served correctly
+
+### Nginx Configuration
+- [ ] Nginx config created
+- [ ] Config tested (`nginx -t`)
+- [ ] Site enabled
+- [ ] Nginx reloaded
+- [ ] Application accessible via HTTP
+
+### Domain & SSL
+- [ ] Domain DNS configured (A records)
+- [ ] DNS propagation verified
+- [ ] SSL certificate obtained (Certbot)
+- [ ] HTTPS working
+- [ ] HTTP redirects to HTTPS
+- [ ] SSL grade A/A+ (SSLLabs)
+
+### Post-Deployment
+- [ ] CORS configured correctly
+- [ ] All features tested (maps, pathfinding, images)
+- [ ] Monitoring setup (UptimeRobot)
+- [ ] Backup script created
+- [ ] Automated backups scheduled
+- [ ] Documentation updated
 
 ---
 
-## 🎓 Resources
+## 📞 Support & Resources
 
 ### Documentation
-- [Railway Docs](https://docs.railway.app/)
-- [Vercel Docs](https://vercel.com/docs)
-- [Netlify Docs](https://docs.netlify.com/)
+- [DigitalOcean Docs](https://docs.digitalocean.com/)
+- [Nginx Documentation](https://nginx.org/en/docs/)
+- [Let's Encrypt](https://letsencrypt.org/docs/)
 - [Spring Boot Deployment](https://docs.spring.io/spring-boot/docs/current/reference/html/deployment.html)
 
-### Tutorials
-- [Deploy Spring Boot to Railway](https://railway.app/templates/spring-boot)
-- [Deploy React to Vercel](https://vercel.com/guides/deploying-react-with-vercel)
-- [Setup Nginx Reverse Proxy](https://www.digitalocean.com/community/tutorials/how-to-configure-nginx-as-a-reverse-proxy-on-ubuntu-22-04)
+### Useful Commands Cheatsheet
 
-### Cost Estimation
-- **Free Tier**: $0/month (Vercel + Railway free tier)
-- **Low Budget**: $5-15/month (VPS DigitalOcean/Lightsail)
-- **Production**: $50-200/month (AWS với autoscaling)
+```bash
+# Backend Management
+sudo systemctl start game-backend
+sudo systemctl stop game-backend
+sudo systemctl restart game-backend
+sudo systemctl status game-backend
+sudo journalctl -u game-backend -f
+
+# Nginx Management
+sudo systemctl reload nginx
+sudo systemctl restart nginx
+sudo nginx -t
+tail -f /var/log/nginx/game-webapp-error.log
+
+# SSL Certificate
+sudo certbot certificates
+sudo certbot renew
+sudo certbot renew --dry-run
+
+# System Monitoring
+htop
+df -h
+free -h
+sudo lsof -i :8080
+sudo netstat -tlnp
+
+# Firewall
+sudo ufw status
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+```
+
+### Cost Breakdown
+
+| Item | Cost | Period |
+|------|------|--------|
+| DigitalOcean Droplet (1GB) | $6 | /month |
+| Domain Name | $10-15 | /year |
+| SSL Certificate | $0 | Free (Let's Encrypt) |
+| **Total** | **~$7/month** | |
+
+### Next Steps
+
+Sau khi deploy thành công, xem thêm:
+- **DEVOPS_GUIDE.md** - Hướng dẫn tích hợp Docker, Kubernetes, CI/CD
+- **README.md** - Tài liệu về features và sử dụng application
 
 ---
 
-## 📞 Support
+## 🎓 Deployment Best Practices
 
-Nếu gặp vấn đề khi deploy, check:
-1. Logs của service (Railway/Heroku/VPS)
-2. Browser Console (F12) cho frontend errors
-3. Network tab để xem API calls
-4. CORS configuration
-5. Environment variables
-
-Good luck với deployment! 🚀
+1. **Always use HTTPS** - Bảo mật và SEO tốt hơn
+2. **Keep backups** - Daily automated backups
+3. **Monitor uptime** - Setup external monitoring
+4. **Update regularly** - Security patches và dependencies
+5. **Use version control** - Git for all code changes
+6. **Test before deploy** - Local testing trước khi push lên production
+7. **Document changes** - Keep deployment log
+8. **Use environment variables** - Không hardcode credentials
+9. **Implement logging** - Đầy đủ logs cho troubleshooting
+10. **Plan for scaling** - Prepare for traffic growth
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: November 2025
-**Author**: Game Web Application Team
+**Version**: 2.0.0 - DigitalOcean Focused
+**Last Updated**: December 2025
+**Maintainer**: Game Web Application Team
+
+---
+
+🎉 **Chúc mừng!** Bạn đã deploy thành công ứng dụng lên DigitalOcean với SSL!
+
+Truy cập: **https://prj1mg.me ** và enjoy! 🚀
