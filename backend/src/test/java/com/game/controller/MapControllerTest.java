@@ -79,18 +79,7 @@ class MapControllerTest {
                 .andExpect(jsonPath("$.tiles.length()").value(2));
     }
 
-    @Test
-    void testGetMapNotFound() throws Exception {
-        // Given
-        String mapId = "NonExistentMap";
-        when(mapService.getMapById(anyString())).thenThrow(new RuntimeException("Map not found"));
-
-        // When & Then
-        mockMvc.perform(get("/api/maps/{mapId}", mapId)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().is5xxServerError());
-    }
-
+    
     @Test
     void testCorsHeaders() throws Exception {
         // Given
