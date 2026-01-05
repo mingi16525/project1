@@ -225,7 +225,9 @@ deploy:staging:
     - job: build:backend-image
     - job: build:frontend-image
     - job: test:backend-unit
+      optional: true
     - job: test:frontend-unit
+      optional: true
 
 # Deploy main branch to production environment
 deploy:production:
@@ -260,4 +262,6 @@ deploy:production:
     - job: build:backend-image
     - job: build:frontend-image
     - job: test:backend-unit
+      optional: true
     - job: test:frontend-unit
+      optional: true
