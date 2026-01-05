@@ -193,8 +193,12 @@ security:dependency-scan:
   allow_failure: true
 
 # ===== DEPLOY STAGE =====
+# Single VM Deployment Strategy:
+# - develop branch -> auto deploy to staging environment (port 8080/3000)
+# - main branch -> manual deploy to production environment (port 8081/3001)
+# Both environments run on the same VM but with different ports and compose files
 
-# Deploy to Staging
+# Deploy develop branch to staging environment
 deploy:staging:
   stage: deploy
   image: alpine:latest
@@ -207,25 +211,26 @@ deploy:staging:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $STAGING_SERVER_IP >> ~/.ssh/known_hosts
+    - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
-      ssh $STAGING_USER@$STAGING_SERVER_IP << 'EOF'
+      ssh $SERVER_USER@$SERVER_IP << 'EOF'
         cd /opt/game-webapp
-        docker-compose pull
-        docker-compose up -d --force-recreate
-        docker system prune -f
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+        docker-compose -f docker-compose.staging.yml pull
+        docker-compose -f docker-compose.staging.yml up -d --force-recreate
+        docker-compose -f docker-compose.staging.yml ps
       EOF
   environment:
     name: staging
-    url: https://staging.yourgame.com
+    url: http://$SERVER_IP:3000
   only:
     - develop
   needs:
     - job: test:backend-unit
     - job: test:frontend-unit
 
-# Deploy to Production
+# Deploy main branch to production environment
 deploy:production:
   stage: deploy
   image: alpine:latest
@@ -238,45 +243,21 @@ deploy:production:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $PROD_SERVER_IP >> ~/.ssh/known_hosts
+    - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
-      ssh $PROD_USER@$PROD_SERVER_IP << 'EOF'
+      ssh $SERVER_USER@$SERVER_IP << 'EOF'
         cd /opt/game-webapp
-        docker-compose -f docker-compose.prod.yml pull
-        docker-compose -f docker-compose.prod.yml up -d --force-recreate
-        docker system prune -f
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+        docker-compose -f docker-compose.production.yml pull
+        docker-compose -f docker-compose.production.yml up -d --force-recreate
+        docker-compose -f docker-compose.production.yml ps
+        # Clean up old images to save space
+        docker image prune -af --filter "until=24h"
       EOF
   environment:
     name: production
-    url: https://yourgame.com
-  when: manual
-  only:
-    - main
-    - tags
-  needs:
-    - job: test:backend-unit
-    - job: test:frontend-unit
-
-# Deploy to Kubernetes (optional)
-deploy:kubernetes:
-  stage: deploy
-  image: bitnami/kubectl:latest
-  dependencies:
-    - build:backend-image
-    - build:frontend-image
-  script:
-    - kubectl config set-cluster k8s --server="$KUBE_URL" --insecure-skip-tls-verify=true
-    - kubectl config set-credentials admin --token="$KUBE_TOKEN"
-    - kubectl config set-context default --cluster=k8s --user=admin
-    - kubectl config use-context default
-    - kubectl set image deployment/game-backend game-backend=$BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA -n game-webapp
-    - kubectl set image deployment/game-frontend game-frontend=$FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA -n game-webapp
-    - kubectl rollout status deployment/game-backend -n game-webapp
-    - kubectl rollout status deployment/game-frontend -n game-webapp
-  environment:
-    name: kubernetes
-    url: https://yourgame.com
+    url: http://$SERVER_IP:3001
   when: manual
   only:
     - main

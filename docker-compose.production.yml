@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  backend-production:
+    image: registry.gitlab.com/migin165/project1/backend:production
+    container_name: game-backend-production
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=production
+      - SERVER_PORT=8080
+      - JAVA_OPTS=-Xmx512m -Xms256m
+      - cors.allowed.origins=https://prj1mg.me,http://152.42.196.25:3000,http://localhost:3000
+      - CORS_ALLOWED_ORIGINS=https://prj1mg.me,http://152.42.196.25:3000,http://localhost:3000
+    volumes:
+      - /opt/game/data:/app/data
+      - ./logs/backend/production:/app/logs
+    networks:
+      - game-network-production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  frontend-production:
+    image: registry.gitlab.com/migin165/project1/frontend:production
+    container_name: game-frontend-production
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    environment:
+      - REACT_APP_API_URL=https://prj1mg.me
+    depends_on:
+      - backend-production
+    networks:
+      - game-network-production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  game-network-production:
+    driver: bridge
+    name: game-production-network
