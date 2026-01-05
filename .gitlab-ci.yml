@@ -212,10 +212,16 @@ deploy:staging:
     - eval $(ssh-agent -s)
     - |
       # Try to add SSH key with better error handling
-      if ! ssh-add ~/.ssh/id_rsa; then
-        echo "ERROR: Failed to add SSH key. Key info:"
-        file ~/.ssh/id_rsa || true
+      if ! ssh-add ~/.ssh/id_rsa 2>&1; then
+        echo "ERROR: Failed to add SSH key. Debugging info:"
+        echo "Key size and permissions:"
         ls -la ~/.ssh/id_rsa
+        echo "Key format (first 2 lines):"
+        head -2 ~/.ssh/id_rsa
+        echo "Key format (last 2 lines):"
+        tail -2 ~/.ssh/id_rsa
+        echo "Attempting to validate key format..."
+        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1 && echo "Key validation: PASSED" || echo "Key validation: FAILED"
         exit 1
       fi
       echo "SSH key added successfully"
@@ -278,10 +284,16 @@ deploy:production:
     - eval $(ssh-agent -s)
     - |
       # Try to add SSH key with better error handling
-      if ! ssh-add ~/.ssh/id_rsa; then
-        echo "ERROR: Failed to add SSH key. Key info:"
-        file ~/.ssh/id_rsa || true
+      if ! ssh-add ~/.ssh/id_rsa 2>&1; then
+        echo "ERROR: Failed to add SSH key. Debugging info:"
+        echo "Key size and permissions:"
         ls -la ~/.ssh/id_rsa
+        echo "Key format (first 2 lines):"
+        head -2 ~/.ssh/id_rsa
+        echo "Key format (last 2 lines):"
+        tail -2 ~/.ssh/id_rsa
+        echo "Attempting to validate key format..."
+        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1 && echo "Key validation: PASSED" || echo "Key validation: FAILED"
         exit 1
       fi
       echo "SSH key added successfully"
