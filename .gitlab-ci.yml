@@ -202,9 +202,6 @@ security:dependency-scan:
 deploy:staging:
   stage: deploy
   image: alpine:latest
-  dependencies:
-    - build:backend-image
-    - build:frontend-image
   before_script:
     - apk add --no-cache openssh-client
     - eval $(ssh-agent -s)
@@ -227,6 +224,8 @@ deploy:staging:
   only:
     - develop
   needs:
+    - job: build:backend-image
+    - job: build:frontend-image
     - job: test:backend-unit
     - job: test:frontend-unit
 
@@ -234,9 +233,6 @@ deploy:staging:
 deploy:production:
   stage: deploy
   image: alpine:latest
-  dependencies:
-    - build:backend-image
-    - build:frontend-image
   before_script:
     - apk add --no-cache openssh-client
     - eval $(ssh-agent -s)
@@ -263,5 +259,7 @@ deploy:production:
     - main
     - tags
   needs:
+    - job: build:backend-image
+    - job: build:frontend-image
     - job: test:backend-unit
     - job: test:frontend-unit
