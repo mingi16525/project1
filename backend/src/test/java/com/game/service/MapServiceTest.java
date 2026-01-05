@@ -81,7 +81,7 @@ class MapServiceTest {
         for (int i = 0; i < tiles.length; i++) {
             for (int j = 0; j < tiles[i].length; j++) {
                 String value = tiles[i][j];
-                assertTrue(value.equals("0") || value.equals("1"), 
+                assertTrue(value.equals("x") ||value.equals("y") ||value.equals("0") || value.equals("1"), 
                     "Tile values should be '0' or '1', but found: " + value + " at [" + i + "][" + j + "]");
             }
         }

@@ -52,10 +52,10 @@ public class MapService {
             try {
                 return loadMapFromFile(mapFile);
             } catch (IOException e) {
-                e.printStackTrace();
+                throw new RuntimeException("Failed to load map: " + id, e);
             }
         }
-        return null;
+        throw new RuntimeException("Map not found: " + id);
     }
     
     public GameMap saveMap(GameMap map) {
