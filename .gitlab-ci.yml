@@ -194,9 +194,21 @@ deploy:staging:
       fi
     - chmod 600 ~/.ssh/id_rsa
     - |
-      # If key is OpenSSH new format, try converting to PEM for compatibility with older libcrypto
+      # Convert OpenSSH format to PEM for compatibility with older crypto libraries
       if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" || echo "ssh-keygen PEM conversion failed or key has passphrase"
+        echo "Converting OpenSSH key to PEM format..."
+        # Create backup of original key
+        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
+        # Convert to PEM format (no passphrase)
+        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" 2>/dev/null || {
+          echo "Warning: Key conversion failed. Using original key."
+          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
+        }
+        # Verify conversion
+        if grep -q "BEGIN RSA PRIVATE KEY" ~/.ssh/id_rsa || grep -q "BEGIN EC PRIVATE KEY" ~/.ssh/id_rsa; then
+          echo "Successfully converted to PEM format"
+          rm -f ~/.ssh/id_rsa.backup
+        fi
       fi
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/id_rsa
@@ -241,9 +253,21 @@ deploy:production:
       fi
     - chmod 600 ~/.ssh/id_rsa
     - |
-      # If key is OpenSSH new format, try converting to PEM for compatibility with older libcrypto
+      # Convert OpenSSH format to PEM for compatibility with older crypto libraries
       if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" || echo "ssh-keygen PEM conversion failed or key has passphrase"
+        echo "Converting OpenSSH key to PEM format..."
+        # Create backup of original key
+        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
+        # Convert to PEM format (no passphrase)
+        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" 2>/dev/null || {
+          echo "Warning: Key conversion failed. Using original key."
+          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
+        }
+        # Verify conversion
+        if grep -q "BEGIN RSA PRIVATE KEY" ~/.ssh/id_rsa || grep -q "BEGIN EC PRIVATE KEY" ~/.ssh/id_rsa; then
+          echo "Successfully converted to PEM format"
+          rm -f ~/.ssh/id_rsa.backup
+        fi
       fi
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/id_rsa
