@@ -183,7 +183,15 @@ deploy:staging:
   before_script:
     - apk add --no-cache openssh-client
     - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - |
+      # Support both GitLab CI variable types:
+      # - File variable: $SSH_PRIVATE_KEY contains a path to a temp file
+      # - Variable with key content: $SSH_PRIVATE_KEY contains the key text
+      if [ -f "$SSH_PRIVATE_KEY" ]; then
+        cp "$SSH_PRIVATE_KEY" ~/.ssh/id_rsa
+      else
+        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+      fi
     - chmod 600 ~/.ssh/id_rsa
     - |
       # If key is OpenSSH new format, try converting to PEM for compatibility with older libcrypto
@@ -222,7 +230,15 @@ deploy:production:
   before_script:
     - apk add --no-cache openssh-client
     - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - |
+      # Support both GitLab CI variable types:
+      # - File variable: $SSH_PRIVATE_KEY contains a path to a temp file
+      # - Variable with key content: $SSH_PRIVATE_KEY contains the key text
+      if [ -f "$SSH_PRIVATE_KEY" ]; then
+        cp "$SSH_PRIVATE_KEY" ~/.ssh/id_rsa
+      else
+        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+      fi
     - chmod 600 ~/.ssh/id_rsa
     - |
       # If key is OpenSSH new format, try converting to PEM for compatibility with older libcrypto
