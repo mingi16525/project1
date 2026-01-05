@@ -194,37 +194,57 @@ deploy:staging:
       fi
     - chmod 600 ~/.ssh/id_rsa
     - |
-      # Convert OpenSSH format to PEM for compatibility with older crypto libraries
-      echo "Checking SSH key format..."
+      # Validate and debug SSH key
+      echo "=== SSH Key Diagnostics ==="
+      echo "Key size: $(wc -c < ~/.ssh/id_rsa) bytes"
+      echo "Key permissions: $(ls -l ~/.ssh/id_rsa | awk '{print $1}')"
+      echo "First line (format identifier):"
       head -1 ~/.ssh/id_rsa
-      if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "Detected OpenSSH format, converting to PEM..."
-        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
-        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" || {
-          echo "ERROR: Key conversion failed!"
-          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
-        }
-        echo "Key format after conversion:"
-        head -1 ~/.ssh/id_rsa
-      else
-        echo "Key is already in PEM or other compatible format"
-      fi
-    - eval $(ssh-agent -s)
-    - |
-      # Try to add SSH key with better error handling
-      if ! ssh-add ~/.ssh/id_rsa 2>&1; then
-        echo "ERROR: Failed to add SSH key. Debugging info:"
-        echo "Key size and permissions:"
-        ls -la ~/.ssh/id_rsa
-        echo "Key format (first 2 lines):"
-        head -2 ~/.ssh/id_rsa
-        echo "Key format (last 2 lines):"
-        tail -2 ~/.ssh/id_rsa
-        echo "Attempting to validate key format..."
-        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1 && echo "Key validation: PASSED" || echo "Key validation: FAILED"
+      echo "Last line:"
+      tail -1 ~/.ssh/id_rsa
+      
+      # Check if key is encrypted
+      if grep -q "ENCRYPTED" ~/.ssh/id_rsa; then
+        echo "ERROR: SSH key is encrypted with a passphrase!"
+        echo "Please provide an unencrypted SSH private key in GitLab CI/CD variables."
+        echo "To remove passphrase: ssh-keygen -p -f your_key -P 'old_passphrase' -N ''"
         exit 1
       fi
-      echo "SSH key added successfully"
+      
+      # Check for common issues
+      if grep -q "\r" ~/.ssh/id_rsa; then
+        echo "Warning: Found Windows line endings in key, cleaning..."
+        tr -d '\r' < ~/.ssh/id_rsa > ~/.ssh/id_rsa.tmp && mv ~/.ssh/id_rsa.tmp ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+      fi
+      
+      # Validate key can be read
+      echo "Validating key format..."
+      if ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>&1; then
+        echo "✓ Key validation PASSED"
+        echo "Public key fingerprint:"
+        ssh-keygen -lf ~/.ssh/id_rsa.pub
+      else
+        echo "✗ Key validation FAILED"
+        echo "Key might be corrupted, encrypted, or in unsupported format."
+        echo "Please check your SSH_PRIVATE_KEY variable in GitLab."
+        exit 1
+      fi
+      
+      # Convert OpenSSH format to PEM if needed
+      if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
+        echo "Converting OpenSSH format to PEM..."
+        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
+        if ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N ""; then
+          echo "✓ Successfully converted to PEM format"
+          head -1 ~/.ssh/id_rsa
+        else
+          echo "✗ Conversion failed, restoring original"
+          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
+        fi
+      fi
+    - eval $(ssh-agent -s)
+    - ssh-add ~/.ssh/id_rsa
     - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
@@ -266,37 +286,57 @@ deploy:production:
       fi
     - chmod 600 ~/.ssh/id_rsa
     - |
-      # Convert OpenSSH format to PEM for compatibility with older crypto libraries
-      echo "Checking SSH key format..."
+      # Validate and debug SSH key
+      echo "=== SSH Key Diagnostics ==="
+      echo "Key size: $(wc -c < ~/.ssh/id_rsa) bytes"
+      echo "Key permissions: $(ls -l ~/.ssh/id_rsa | awk '{print $1}')"
+      echo "First line (format identifier):"
       head -1 ~/.ssh/id_rsa
-      if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "Detected OpenSSH format, converting to PEM..."
-        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
-        ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N "" || {
-          echo "ERROR: Key conversion failed!"
-          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
-        }
-        echo "Key format after conversion:"
-        head -1 ~/.ssh/id_rsa
-      else
-        echo "Key is already in PEM or other compatible format"
-      fi
-    - eval $(ssh-agent -s)
-    - |
-      # Try to add SSH key with better error handling
-      if ! ssh-add ~/.ssh/id_rsa 2>&1; then
-        echo "ERROR: Failed to add SSH key. Debugging info:"
-        echo "Key size and permissions:"
-        ls -la ~/.ssh/id_rsa
-        echo "Key format (first 2 lines):"
-        head -2 ~/.ssh/id_rsa
-        echo "Key format (last 2 lines):"
-        tail -2 ~/.ssh/id_rsa
-        echo "Attempting to validate key format..."
-        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1 && echo "Key validation: PASSED" || echo "Key validation: FAILED"
+      echo "Last line:"
+      tail -1 ~/.ssh/id_rsa
+      
+      # Check if key is encrypted
+      if grep -q "ENCRYPTED" ~/.ssh/id_rsa; then
+        echo "ERROR: SSH key is encrypted with a passphrase!"
+        echo "Please provide an unencrypted SSH private key in GitLab CI/CD variables."
+        echo "To remove passphrase: ssh-keygen -p -f your_key -P 'old_passphrase' -N ''"
         exit 1
       fi
-      echo "SSH key added successfully"
+      
+      # Check for common issues
+      if grep -q "\r" ~/.ssh/id_rsa; then
+        echo "Warning: Found Windows line endings in key, cleaning..."
+        tr -d '\r' < ~/.ssh/id_rsa > ~/.ssh/id_rsa.tmp && mv ~/.ssh/id_rsa.tmp ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+      fi
+      
+      # Validate key can be read
+      echo "Validating key format..."
+      if ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>&1; then
+        echo "✓ Key validation PASSED"
+        echo "Public key fingerprint:"
+        ssh-keygen -lf ~/.ssh/id_rsa.pub
+      else
+        echo "✗ Key validation FAILED"
+        echo "Key might be corrupted, encrypted, or in unsupported format."
+        echo "Please check your SSH_PRIVATE_KEY variable in GitLab."
+        exit 1
+      fi
+      
+      # Convert OpenSSH format to PEM if needed
+      if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
+        echo "Converting OpenSSH format to PEM..."
+        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
+        if ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N ""; then
+          echo "✓ Successfully converted to PEM format"
+          head -1 ~/.ssh/id_rsa
+        else
+          echo "✗ Conversion failed, restoring original"
+          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
+        fi
+      fi
+    - eval $(ssh-agent -s)
+    - ssh-add ~/.ssh/id_rsa
     - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
