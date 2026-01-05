@@ -9,8 +9,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (include devDependencies for build tools)
-RUN npm ci
-
+RUN npm install
 # Copy source code
 COPY . .
 
