@@ -1,8 +1,16 @@
 import axios from 'axios';
 import { getMaps, getMapById, findPath } from './api';
 
-// Mock axios
-jest.mock('axios');
+// Mock axios (provide factory so axios.create returns the mocked instance before api module loads)
+jest.mock('axios', () => {
+  const mAxios = {
+    get: jest.fn(),
+    post: jest.fn(),
+    create: jest.fn(),
+  };
+  mAxios.create.mockReturnValue(mAxios);
+  return mAxios;
+});
 
 describe('API Service', () => {
   beforeEach(() => {

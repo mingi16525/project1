@@ -30,7 +30,7 @@ function MapList({ maps, onSelectMap, selectedMapId, onCreateCustomMap }) {
     <div className="map-list">
       {/* Map 0 - Custom Map */}
       <div
-        className={`map-item ${selectedMapId === 'Map0' ? 'selected' : ''}`}
+        className={`custom-map ${selectedMapId === 'Map0' ? 'selected' : ''}`}
       >
         <div onClick={handleMap0Click} style={{ cursor: 'pointer' }}>
           <h3>Map 0 (Custom)</h3>
@@ -75,16 +75,21 @@ function MapList({ maps, onSelectMap, selectedMapId, onCreateCustomMap }) {
       </div>
 
       {/* Existing Maps */}
-      {Array.isArray(maps) && maps.map((map) => (
-  <div
-    key={map.id}
-    className={`map-item ${selectedMapId === map.id ? 'selected' : ''}`}
-    onClick={() => onSelectMap(map.id)}
-  >
-    <h3>{map.name}</h3>
-    <p>{map.width} x {map.height}</p>
-  </div>
-))}
+      {Array.isArray(maps) && maps.map((m, idx) => {
+        const map = typeof m === 'string' ? { id: m, name: m, width: '', height: '' } : m || {};
+        const key = map.id || `map-${idx}`;
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`map-item ${selectedMapId === map.id ? 'selected' : ''}`}
+            onClick={() => onSelectMap && onSelectMap(map.id)}
+          >
+            <h3>{map.name}</h3>
+            <p>{map.width} {map.width && 'x'} {map.height}</p>
+          </button>
+        );
+      })}
     </div>
   );
 }

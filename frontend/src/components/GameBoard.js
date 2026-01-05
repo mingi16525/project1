@@ -7,7 +7,36 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
 
 function GameBoard({ map, onMapUpdate }) {
   const [editMode, setEditMode] = useState(null); // null, 'start', 'obstacle', 'end'
-  const [localMap, setLocalMap] = useState(map);
+
+  const normalizeMap = (m) => {
+    if (!m) {
+      return { id: '', name: '', width: 0, height: 0, tiles: [] };
+    }
+    // If already using `tiles` shape, ensure strings
+    if (m.tiles) {
+      return {
+        id: m.id || '',
+        name: m.name || '',
+        width: m.width || (m.tiles[0] ? m.tiles[0].length : 0),
+        height: m.height || (m.tiles ? m.tiles.length : 0),
+        tiles: m.tiles.map(row => row.map(String)),
+      };
+    }
+    // Accept older test shape using grid / rows / cols
+    if (m.grid) {
+      return {
+        id: m.id || '',
+        name: m.name || '',
+        width: m.cols || m.width || (m.grid[0] ? m.grid[0].length : 0),
+        height: m.rows || m.height || (m.grid ? m.grid.length : 0),
+        tiles: m.grid.map(row => row.map(String)),
+      };
+    }
+    // Fallback
+    return { id: m.id || '', name: m.name || '', width: 0, height: 0, tiles: [] };
+  };
+
+  const [localMap, setLocalMap] = useState(() => normalizeMap(map));
   const [currentPath, setCurrentPath] = useState([]);
   const [playerPosition, setPlayerPosition] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -23,7 +52,7 @@ function GameBoard({ map, onMapUpdate }) {
 
   // Update local map when prop changes
   useEffect(() => {
-    setLocalMap(map);
+    setLocalMap(normalizeMap(map));
     setCurrentPath([]);
     setPlayerPosition(null);
     setPathInfo(null);
@@ -206,16 +235,16 @@ function GameBoard({ map, onMapUpdate }) {
   };
 
   const getTileClass = (tile, rowIndex, colIndex) => {
-    let className = 'tile';
+    let className = 'cell tile';
     
     if (tile === '1') {
-      className += ' blocked';
+      className += ' blocked obstacle';
     } else if (tile === 'x') {
       className += ' start';
     } else if (tile === 'y') {
       className += ' end';
     } else {
-      className += ' empty';
+      className += ' empty walkable';
     }
 
     // Highlight visited nodes if enabled (use animated nodes if animation is enabled)

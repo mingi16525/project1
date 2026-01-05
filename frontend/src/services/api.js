@@ -30,12 +30,14 @@ export const updateMap = async (id, map) => {
 };
 
 export const findPath = async (tiles, width, height, algorithm) => {
-  const response = await api.post('/api/pathfinding', {
-    tiles,
-    width,
-    height,
-    algorithm
-  });
+  // Support both API: findPath(requestObject) and findPath(tiles,width,height,algorithm)
+  let payload;
+  if (typeof width === 'undefined' && typeof height === 'undefined' && typeof algorithm === 'undefined' && typeof tiles === 'object') {
+    payload = tiles;
+  } else {
+    payload = { tiles, width, height, algorithm };
+  }
+  const response = await api.post('/api/pathfinding/find', payload);
   return response.data;
 };
 
