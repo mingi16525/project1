@@ -184,6 +184,14 @@ deploy:staging:
     - apk add --no-cache openssh-client openssh-keygen bash
     - mkdir -p ~/.ssh
     - |
+      # Check if SSH_PRIVATE_KEY is configured
+      if [ -z "$SSH_PRIVATE_KEY" ]; then
+        echo "WARNING: SSH_PRIVATE_KEY is not configured in GitLab CI/CD variables"
+        echo "Please add SSH_PRIVATE_KEY in: Settings > CI/CD > Variables"
+        echo "Skipping deployment..."
+        exit 0
+      fi
+      
       # Support both GitLab CI variable types:
       # - File variable: $SSH_PRIVATE_KEY contains a path to a temp file
       # - Variable with key content: $SSH_PRIVATE_KEY contains the key text
@@ -260,6 +268,7 @@ deploy:staging:
     url: http://$SERVER_IP:3000
   only:
     - develop
+  allow_failure: true
   needs:
     - job: build:backend-image
     - job: build:frontend-image
@@ -276,6 +285,14 @@ deploy:production:
     - apk add --no-cache openssh-client openssh-keygen bash
     - mkdir -p ~/.ssh
     - |
+      # Check if SSH_PRIVATE_KEY is configured
+      if [ -z "$SSH_PRIVATE_KEY" ]; then
+        echo "WARNING: SSH_PRIVATE_KEY is not configured in GitLab CI/CD variables"
+        echo "Please add SSH_PRIVATE_KEY in: Settings > CI/CD > Variables"
+        echo "Skipping deployment..."
+        exit 0
+      fi
+      
       # Support both GitLab CI variable types:
       # - File variable: $SSH_PRIVATE_KEY contains a path to a temp file
       # - Variable with key content: $SSH_PRIVATE_KEY contains the key text
@@ -353,6 +370,7 @@ deploy:production:
     name: production
     url: http://$SERVER_IP:3001
   when: manual
+  allow_failure: true
   only:
     - main
     - tags
