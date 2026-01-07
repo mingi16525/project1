@@ -20,8 +20,18 @@ function MapList({ maps, onSelectMap, selectedMapId, onCreateCustomMap }) {
     const m = parseInt(customWidth) || 10;
     
     if (n > 0 && m > 0 && n <= 30 && m <= 30) {
-      onCreateCustomMap(n, m);
-    } else {
+// Sinh điểm bắt đầu ngẫu nhiên
+      const startRow = Math.floor(Math.random() * n);
+      const startCol = Math.floor(Math.random() * m);
+      
+      // Sinh điểm kết thúc ngẫu nhiên (khác điểm bắt đầu)
+      let endRow, endCol;
+      do {
+        endRow = Math.floor(Math.random() * n);
+        endCol = Math.floor(Math.random() * m);
+      } while (startRow === endRow && startCol === endCol);
+      
+      onCreateCustomMap(n, m, { row: startRow, col: startCol }, { row: endRow, col: endCol });    } else {
       alert('Vui lòng nhập kích thước từ 1 đến 30');
     }
   };
