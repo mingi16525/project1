@@ -9,12 +9,13 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/pathfinding")
+@CrossOrigin(origins = "*")
 public class PathFindingController {
     
     @Autowired
     private PathFindingService pathFindingService;
     
-    @PostMapping
+    @PostMapping("/find")
     public ResponseEntity<PathFindingResponse> findPath(@RequestBody PathFindingRequest request) {
         PathFindingResponse response = pathFindingService.findPath(request);
         return ResponseEntity.ok(response);
