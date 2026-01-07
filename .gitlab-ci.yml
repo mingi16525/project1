@@ -57,13 +57,21 @@ build:backend-image:staging:
   services:
     - docker:dind
   before_script:
+    - echo "=== Starting Backend Image Build for Staging ==="
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+    - echo "Commit: $CI_COMMIT_SHORT_SHA"
+    - echo "Backend Image: $BACKEND_IMAGE"
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - cd backend
+    - echo "Building image: $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA"
     - docker build -t $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA .
     - docker tag $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA $BACKEND_IMAGE:staging
+    - echo "Pushing image: $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA"
     - docker push $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA
+    - echo "Pushing image: $BACKEND_IMAGE:staging"
     - docker push $BACKEND_IMAGE:staging
+    - echo "✓ Backend staging build completed successfully"
   only:
     - develop
 
@@ -73,13 +81,22 @@ build:frontend-image:staging:
   services:
     - docker:dind
   before_script:
+    - echo "=== Starting Frontend Image Build for Staging ==="
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+    - echo "Commit: $CI_COMMIT_SHORT_SHA"
+    - echo "Frontend Image: $FRONTEND_IMAGE"
+    - echo "API URL: $REACT_APP_API_URL"
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - cd frontend
+    - echo "Building image: $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA"
     - docker build --build-arg REACT_APP_API_URL=$REACT_APP_API_URL -t $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA .
     - docker tag $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA $FRONTEND_IMAGE:staging
+    - echo "Pushing image: $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA"
     - docker push $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA
+    - echo "Pushing image: $FRONTEND_IMAGE:staging"
     - docker push $FRONTEND_IMAGE:staging
+    - echo "✓ Frontend staging build completed successfully"
   only:
     - develop
 
@@ -90,13 +107,21 @@ build:backend-image:production:
   services:
     - docker:dind
   before_script:
+    - echo "=== Starting Backend Image Build for Production ==="
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+    - echo "Commit: $CI_COMMIT_SHORT_SHA"
+    - echo "Backend Image: $BACKEND_IMAGE"
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - cd backend
+    - echo "Building image: $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA"
     - docker build -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA .
     - docker tag $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA $BACKEND_IMAGE:latest
+    - echo "Pushing image: $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA"
     - docker push $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - echo "Pushing image: $BACKEND_IMAGE:latest"
     - docker push $BACKEND_IMAGE:latest
+    - echo "✓ Backend production build completed successfully"
   only:
     - main
     - tags
@@ -107,13 +132,22 @@ build:frontend-image:production:
   services:
     - docker:dind
   before_script:
+    - echo "=== Starting Frontend Image Build for Production ==="
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+    - echo "Commit: $CI_COMMIT_SHORT_SHA"
+    - echo "Frontend Image: $FRONTEND_IMAGE"
+    - echo "API URL: $REACT_APP_API_URL"
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - cd frontend
+    - echo "Building image: $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA"
     - docker build --build-arg REACT_APP_API_URL=$REACT_APP_API_URL -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA .
     - docker tag $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA $FRONTEND_IMAGE:latest
+    - echo "Pushing image: $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA"
     - docker push $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - echo "Pushing image: $FRONTEND_IMAGE:latest"
     - docker push $FRONTEND_IMAGE:latest
+    - echo "✓ Frontend production build completed successfully"
   only:
     - main
     - tags
