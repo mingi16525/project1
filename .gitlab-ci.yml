@@ -50,8 +50,41 @@ build:frontend:
       - frontend/**/*
       - .gitlab-ci.yml
 
-# Build Docker images
-build:backend-image:
+# Build Docker images for staging (develop branch)
+build:backend-image:staging:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd backend
+    - docker build -t $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA .
+    - docker tag $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA $BACKEND_IMAGE:staging
+    - docker push $BACKEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA
+    - docker push $BACKEND_IMAGE:staging
+  only:
+    - develop
+
+build:frontend-image:staging:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd frontend
+    - docker build --build-arg REACT_APP_API_URL=$REACT_APP_API_URL -t $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA .
+    - docker tag $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA $FRONTEND_IMAGE:staging
+    - docker push $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA
+    - docker push $FRONTEND_IMAGE:staging
+  only:
+    - develop
+
+# Build Docker images for production (main branch)
+build:backend-image:production:
   stage: build
   image: docker:latest
   services:
@@ -66,10 +99,9 @@ build:backend-image:
     - docker push $BACKEND_IMAGE:latest
   only:
     - main
-    - develop
     - tags
 
-build:frontend-image:
+build:frontend-image:production:
   stage: build
   image: docker:latest
   services:
@@ -84,7 +116,6 @@ build:frontend-image:
     - docker push $FRONTEND_IMAGE:latest
   only:
     - main
-    - develop
     - tags
 
 # ===== TEST STAGE =====
@@ -270,8 +301,8 @@ deploy:staging:
     - develop
   allow_failure: true
   needs:
-    - job: build:backend-image
-    - job: build:frontend-image
+    - job: build:backend-image:staging
+    - job: build:frontend-image:staging
     - job: test:backend-unit
       optional: true
     - job: test:frontend-unit
@@ -375,8 +406,8 @@ deploy:production:
     - main
     - tags
   needs:
-    - job: build:backend-image
-    - job: build:frontend-image
+    - job: build:backend-image:production
+    - job: build:frontend-image:production
     - job: test:backend-unit
       optional: true
     - job: test:frontend-unit

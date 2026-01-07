@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend-production:
-    image: registry.gitlab.com/migin165/project1/backend:production
+    image: registry.gitlab.com/migin165/project1/backend:latest
     container_name: game-backend-production
     restart: unless-stopped
     ports:
@@ -28,7 +28,7 @@ services:
           memory: 512M
 
   frontend-production:
-    image: registry.gitlab.com/migin165/project1/frontend:production
+    image: registry.gitlab.com/migin165/project1/frontend:latest
     container_name: game-frontend-production
     restart: unless-stopped
     ports:
