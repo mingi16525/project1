@@ -53,7 +53,7 @@ class PathFindingControllerTest {
         when(pathFindingService.findPath(any(PathFindingRequest.class))).thenReturn(response);
 
         // When & Then
-        mockMvc.perform(post("/api/pathfinding")
+        mockMvc.perform(post("/api/pathfinding/find")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -80,7 +80,7 @@ class PathFindingControllerTest {
         when(pathFindingService.findPath(any(PathFindingRequest.class))).thenReturn(response);
 
         // When & Then
-        mockMvc.perform(post("/api/pathfinding")
+        mockMvc.perform(post("/api/pathfinding/find")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -94,7 +94,7 @@ class PathFindingControllerTest {
         String invalidJson = "{invalid json}";
 
         // When & Then
-        mockMvc.perform(post("/api/pathfinding")
+        mockMvc.perform(post("/api/pathfinding/find")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(invalidJson))
                 .andExpect(status().is4xxClientError());
@@ -110,7 +110,7 @@ class PathFindingControllerTest {
         when(pathFindingService.findPath(any(PathFindingRequest.class))).thenReturn(response);
 
         // When & Then - Should still work but return no path found
-        mockMvc.perform(post("/api/pathfinding")
+        mockMvc.perform(post("/api/pathfinding/find")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
@@ -137,7 +137,7 @@ class PathFindingControllerTest {
             
             when(pathFindingService.findPath(any(PathFindingRequest.class))).thenReturn(response);
 
-            mockMvc.perform(post("/api/pathfinding")
+            mockMvc.perform(post("/api/pathfinding/find")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
