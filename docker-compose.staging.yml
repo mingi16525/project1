@@ -6,12 +6,12 @@ services:
     container_name: game-backend-staging
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=staging
       - SERVER_PORT=8080
-      - cors.allowed.origins=http://152.42.196.25:3000,http://localhost:3000
-      - CORS_ALLOWED_ORIGINS=http://152.42.196.25:3000,http://localhost:3000
+      - cors.allowed.origins=http://152.42.196.25:3001,http://localhost:3001
+      - CORS_ALLOWED_ORIGINS=http://152.42.196.25:3001,http://localhost:3001
     volumes:
       - /opt/game/data:/app/data
       - ./logs/backend/staging:/app/logs
@@ -23,9 +23,9 @@ services:
     container_name: game-frontend-staging
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3001:80"
     environment:
-      - REACT_APP_API_URL=http://152.42.196.25:8080
+      - REACT_APP_API_URL=http://152.42.196.25:8081
     depends_on:
       - backend-staging
     networks:

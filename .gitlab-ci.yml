@@ -346,7 +346,7 @@ deploy:staging:
       EOF
   environment:
     name: staging
-    url: http://$SERVER_IP:3000
+    url: http://$SERVER_IP:3001
   only:
     - develop
   allow_failure: true
@@ -449,7 +449,7 @@ deploy:production:
       EOF
   environment:
     name: production
-    url: http://$SERVER_IP:3001
+    url: http://$SERVER_IP:3000
   when: manual
   allow_failure: true
   only:

@@ -6,7 +6,7 @@ services:
     container_name: game-backend-production
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=production
       - SERVER_PORT=8080
@@ -32,9 +32,9 @@ services:
     container_name: game-frontend-production
     restart: unless-stopped
     ports:
-      - "3001:80"
+      - "3000:80"
     environment:
-      - REACT_APP_API_URL=https://prj1mg.me
+      - REACT_APP_API_URL=http://152.42.196.25:8080
     depends_on:
       - backend-production
     networks:
