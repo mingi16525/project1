@@ -30,7 +30,7 @@ function MapList({ maps, onSelectMap, selectedMapId, onCreateCustomMap }) {
     <div className="map-list">
       {/* Map 0 - Custom Map */}
       <div
-        className={`custom-map ${selectedMapId === 'Map0' ? 'selected' : ''}`}
+        className={`custom-map map-item ${selectedMapId === 'Map0' ? 'selected' : ''}`}
       >
         <div onClick={handleMap0Click} style={{ cursor: 'pointer' }}>
           <h3>Map 0 (Custom)</h3>

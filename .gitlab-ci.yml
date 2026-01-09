@@ -4,6 +4,7 @@ stages:
   - deploy
 
 variables:
+  CI_REGISTRY_IMAGE: "registry.gitlab.com/migin165/project1"
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
   BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
@@ -19,36 +20,36 @@ cache:
 
 # ===== BUILD STAGE =====
 
-build:backend:
-  stage: build
-  image: maven:3.9.5-eclipse-temurin-17
-  script:
-    - cd backend
-    - mvn clean compile -DskipTests
-  artifacts:
-    paths:
-      - backend/target/
-    expire_in: 1 hour
-  only:
-    changes:
-      - backend/**/*
-      - .gitlab-ci.yml
+# build:backend:
+#   stage: build
+#   image: maven:3.9.5-eclipse-temurin-17
+#   script:
+#     - cd backend
+#     - mvn clean compile -DskipTests
+#   artifacts:
+#     paths:
+#       - backend/target/
+#     expire_in: 1 hour
+#   only:
+#     changes:
+#       - backend/**/*
+#       - .gitlab-ci.yml
 
-build:frontend:
-  stage: build
-  image: node:18-alpine
-  script:
-    - cd frontend
-    - npm ci
-    - npm run build
-  artifacts:
-    paths:
-      - frontend/build/
-    expire_in: 1 hour
-  only:
-    changes:
-      - frontend/**/*
-      - .gitlab-ci.yml
+# build:frontend:
+#   stage: build
+#   image: node:18-alpine
+#   script:
+#     - cd frontend
+#     - npm ci
+#     - npm run build
+#   artifacts:
+#     paths:
+#       - frontend/build/
+#     expire_in: 1 hour
+#   only:
+#     changes:
+#       - frontend/**/*
+#       - .gitlab-ci.yml
 
 # Build Docker images for staging (develop branch)
 build:backend-image:staging:
@@ -77,7 +78,9 @@ build:backend-image:staging:
     - docker push $BACKEND_IMAGE:staging
     - echo "✓ Backend staging build completed successfully"
   only:
-    - develop
+    changes:
+      - backend/**/*
+      - .gitlab-ci.yml
 
 build:frontend-image:staging:
   stage: build
@@ -96,6 +99,12 @@ build:frontend-image:staging:
     - cd frontend
     - |
      echo "Building image: $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA"
+     echo "API URL: $REACT_APP_API_URL"
+     if [ -z "$REACT_APP_API_URL" ]; then
+       echo "WARNING: REACT_APP_API_URL is not set, using default"
+       REACT_APP_API_URL="http://152.42.196.25:8081"
+     fi
+     echo "Using API URL: $REACT_APP_API_URL"
     - docker build --build-arg REACT_APP_API_URL=$REACT_APP_API_URL -t $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA .
     - docker tag $FRONTEND_IMAGE:staging-$CI_COMMIT_SHORT_SHA $FRONTEND_IMAGE:staging
     - |
@@ -106,7 +115,11 @@ build:frontend-image:staging:
     - docker push $FRONTEND_IMAGE:staging
     - echo "✓ Frontend staging build completed successfully"
   only:
-    - develop
+    changes:
+      - frontend/**/*
+      - .gitlab-ci.yml
+      
+    
 
 # Build Docker images for production (main branch)
 build:backend-image:production:
@@ -155,6 +168,12 @@ build:frontend-image:production:
     - cd frontend
     - |
       echo "Building image: $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA"
+      echo "API URL: $REACT_APP_API_URL"
+      if [ -z "$REACT_APP_API_URL" ]; then
+       echo "WARNING: REACT_APP_API_URL is not set, using default"
+       REACT_APP_API_URL="http://152.42.196.25:8080"
+      fi
+      echo "Using API URL: $REACT_APP_API_URL"
     - docker build --build-arg REACT_APP_API_URL=$REACT_APP_API_URL -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA .
     - docker tag $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA $FRONTEND_IMAGE:latest
     - |
@@ -306,6 +325,7 @@ deploy:staging:
         tr -d '\r' < ~/.ssh/id_rsa > ~/.ssh/id_rsa.tmp && mv ~/.ssh/id_rsa.tmp ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
       fi
+
       
       # Validate key can be read
       echo "Validating key format..."
@@ -315,34 +335,61 @@ deploy:staging:
         ssh-keygen -lf ~/.ssh/id_rsa.pub
       else
         echo "✗ Key validation FAILED"
+        echo "Detailed error from ssh-keygen:"
+        ssh-keygen -y -f ~/.ssh/id_rsa 2>&1 || true
+        echo ""
+        echo "First 5 lines of key file:"
+        head -5 ~/.ssh/id_rsa
+        echo "Last 5 lines of key file:"
+        tail -5 ~/.ssh/id_rsa
+        echo ""
         echo "Key might be corrupted, encrypted, or in unsupported format."
         echo "Please check your SSH_PRIVATE_KEY variable in GitLab."
         exit 1
       fi
-      
-      # Convert OpenSSH format to PEM if needed
-      if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "Converting OpenSSH format to PEM..."
-        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
-        if ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N ""; then
-          echo "✓ Successfully converted to PEM format"
-          head -1 ~/.ssh/id_rsa
-        else
-          echo "✗ Conversion failed, restoring original"
-          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
-        fi
-      fi
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/id_rsa
+    - |
+      # Verify SERVER_IP and SERVER_USER are set
+      echo "Checking deployment variables..."
+      if [ -z "$SERVER_IP" ]; then
+        echo "ERROR: SERVER_IP is not set in GitLab CI/CD variables"
+        exit 1
+      fi
+      if [ -z "$SERVER_USER" ]; then
+        echo "ERROR: SERVER_USER is not set in GitLab CI/CD variables"
+        exit 1
+      fi
+      echo "SERVER_IP: $SERVER_IP"
+      echo "SERVER_USER: $SERVER_USER"
     - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
       ssh $SERVER_USER@$SERVER_IP << 'EOF'
         cd /opt/game-webapp
-        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-        docker-compose -f docker-compose.staging.yml pull
-        docker-compose -f docker-compose.staging.yml up -d --force-recreate
-        docker-compose -f docker-compose.staging.yml ps
+        # Ensure log file exists and is writable
+        touch /opt/game-webapp/logcicd.txt
+        chmod 644 /opt/game-webapp/logcicd.txt || true
+
+        echo "=== CI/CD $(date '+%Y-%m-%d %H:%M:%S') - STAGING DEPLOY START ===" >> /opt/game-webapp/logcicd.txt
+
+        echo "--- docker login ---" >> /opt/game-webapp/logcicd.txt
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY >> /opt/game-webapp/logcicd.txt 2>&1
+        echo "docker login exit:$?" >> /opt/game-webapp/logcicd.txt
+
+        echo "--- docker-compose pull ---" >> /opt/game-webapp/logcicd.txt
+        docker-compose -f docker-compose.staging.yml pull >> /opt/game-webapp/logcicd.txt 2>&1
+        echo "pull exit:$?" >> /opt/game-webapp/logcicd.txt
+
+        echo "--- docker-compose up ---" >> /opt/game-webapp/logcicd.txt
+        docker-compose -f docker-compose.staging.yml up -d --force-recreate >> /opt/game-webapp/logcicd.txt 2>&1
+        echo "up exit:$?" >> /opt/game-webapp/logcicd.txt
+
+        echo "--- docker-compose ps ---" >> /opt/game-webapp/logcicd.txt
+        docker-compose -f docker-compose.staging.yml ps >> /opt/game-webapp/logcicd.txt 2>&1
+        echo "ps exit:$?" >> /opt/game-webapp/logcicd.txt
+
+        echo "=== CI/CD $(date '+%Y-%m-%d %H:%M:%S') - STAGING DEPLOY END ===" >> /opt/game-webapp/logcicd.txt
       EOF
   environment:
     name: staging
@@ -352,7 +399,9 @@ deploy:staging:
   allow_failure: true
   needs:
     - job: build:backend-image:staging
+      optional: true
     - job: build:frontend-image:staging
+      optional: true
     - job: test:backend-unit
       optional: true
     - job: test:frontend-unit
@@ -407,6 +456,7 @@ deploy:production:
         tr -d '\r' < ~/.ssh/id_rsa > ~/.ssh/id_rsa.tmp && mv ~/.ssh/id_rsa.tmp ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
       fi
+
       
       # Validate key can be read
       echo "Validating key format..."
@@ -416,42 +466,66 @@ deploy:production:
         ssh-keygen -lf ~/.ssh/id_rsa.pub
       else
         echo "✗ Key validation FAILED"
+        echo "Detailed error from ssh-keygen:"
+        ssh-keygen -y -f ~/.ssh/id_rsa 2>&1 || true
+        echo ""
+        echo "First 5 lines of key file:"
+        head -5 ~/.ssh/id_rsa
+        echo "Last 5 lines of key file:"
+        tail -5 ~/.ssh/id_rsa
+        echo ""
         echo "Key might be corrupted, encrypted, or in unsupported format."
         echo "Please check your SSH_PRIVATE_KEY variable in GitLab."
         exit 1
       fi
-      
-      # Convert OpenSSH format to PEM if needed
-      if grep -q "BEGIN OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "Converting OpenSSH format to PEM..."
-        cp ~/.ssh/id_rsa ~/.ssh/id_rsa.backup
-        if ssh-keygen -p -m PEM -f ~/.ssh/id_rsa -P "" -N ""; then
-          echo "✓ Successfully converted to PEM format"
-          head -1 ~/.ssh/id_rsa
-        else
-          echo "✗ Conversion failed, restoring original"
-          mv ~/.ssh/id_rsa.backup ~/.ssh/id_rsa
-        fi
-      fi
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/id_rsa
+    - |
+      # Verify SERVER_IP and SERVER_USER are set
+      echo "Checking deployment variables..."
+      if [ -z "$SERVER_IP" ]; then
+        echo "ERROR: SERVER_IP is not set in GitLab CI/CD variables"
+        exit 1
+      fi
+      if [ -z "$SERVER_USER" ]; then
+        echo "ERROR: SERVER_USER is not set in GitLab CI/CD variables"
+        exit 1
+      fi
+      echo "SERVER_IP: $SERVER_IP"
+      echo "SERVER_USER: $SERVER_USER"
     - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
   script:
     - |
       ssh $SERVER_USER@$SERVER_IP << 'EOF'
         cd /opt/game-webapp
-        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-        docker-compose -f docker-compose.production.yml pull
-        docker-compose -f docker-compose.production.yml up -d --force-recreate
-        docker-compose -f docker-compose.production.yml ps
-        # Clean up old images to save space
-        docker image prune -af --filter "until=24h"
+        # Ensure log file exists and is writable
+        touch /opt/game-webapp/logcicdproduction.txt
+        chmod 644 /opt/game-webapp/logcicdproduction.txt || true
+
+        echo "=== CI/CD $(date '+%Y-%m-%d %H:%M:%S') - PRODUCTION DEPLOY START ===" >> /opt/game-webapp/logcicdproduction.txt
+
+        echo "--- docker login ---" >> /opt/game-webapp/logcicdproduction.txt
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY >> /opt/game-webapp/logcicdproduction.txt 2>&1
+        echo "docker login exit:$?" >> /opt/game-webapp/logcicdproduction.txt
+
+        echo "--- docker-compose pull ---" >> /opt/game-webapp/logcicdproduction.txt
+        docker-compose -f docker-compose.production.yml pull >> /opt/game-webapp/logcicdproduction.txt 2>&1
+        echo "pull exit:$?" >> /opt/game-webapp/logcicdproduction.txt
+
+        echo "--- docker-compose up ---" >> /opt/game-webapp/logcicdproduction.txt
+        docker-compose -f docker-compose.production.yml up -d --force-recreate >> /opt/game-webapp/logcicdproduction.txt 2>&1
+        echo "up exit:$?" >> /opt/game-webapp/logcicdproduction.txt
+
+        echo "--- docker-compose ps ---" >> /opt/game-webapp/logcicdproduction.txt
+        docker-compose -f docker-compose.production.yml ps >> /opt/game-webapp/logcicdproduction.txt 2>&1
+        echo "ps exit:$?" >> /opt/game-webapp/logcicdproduction.txt
+
+        echo "=== CI/CD $(date '+%Y-%m-%d %H:%M:%S') - Production DEPLOY END ===" >> /opt/game-webapp/logcicdproduction.txt
       EOF
   environment:
     name: production
     url: http://$SERVER_IP:3000
   when: manual
-  allow_failure: true
   only:
     - main
     - tags

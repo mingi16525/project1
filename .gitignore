@@ -41,3 +41,6 @@ deployment-info.txt
 deploy-frontend.sh
 nginx-game-webapp.conf
 setup-nginx.sh
+
+gitlab_deploy_key
+gitlab_deploy_key.pub
