@@ -16,6 +16,7 @@ public class PathFindingService {
         long startTime = System.currentTimeMillis();
         
         Position start = findPosition(request.getTiles(), "x");
+        Position start2 = findPosition(request.getTiles(), "z"); // Second player start
         Position end = findPosition(request.getTiles(), "y");
         
         if (start == null || end == null) {
@@ -39,6 +40,31 @@ public class PathFindingService {
                 break;
             default:
                 response = new PathFindingResponse(new ArrayList<>(), false, 0, 0, request.getAlgorithm(), new ArrayList<>());
+        }
+        
+        // If second player exists, find path for them too
+        if (start2 != null) {
+            PathFindingResponse response2;
+            switch (request.getAlgorithm().toUpperCase()) {
+                case "BFS":
+                    response2 = bfs(request.getTiles(), start2, end, request.getHeight(), request.getWidth());
+                    break;
+                case "DFS":
+                    response2 = dfs(request.getTiles(), start2, end, request.getHeight(), request.getWidth());
+                    break;
+                case "A_STAR":
+                    response2 = aStar(request.getTiles(), start2, end, request.getHeight(), request.getWidth());
+                    break;
+                case "IDS":
+                    response2 = ids(request.getTiles(), start2, end, request.getHeight(), request.getWidth());
+                    break;
+                default:
+                    response2 = new PathFindingResponse(new ArrayList<>(), false, 0, 0, request.getAlgorithm(), new ArrayList<>());
+            }
+            response.setPath2(response2.getPath());
+            response.setFound2(response2.isFound());
+            response.setNodesExplored2(response2.getNodesExplored());
+            response.setVisitedNodes2(response2.getVisitedNodes());
         }
         
         response.setExecutionTime(System.currentTimeMillis() - startTime);

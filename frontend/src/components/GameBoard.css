@@ -73,6 +73,10 @@
   background-color: #0066ff;
 }
 
+.start2-btn .circle-icon {
+  background-color: #00cc66;
+}
+
 .block-icon {
   background-color: #ff0000;
   border-radius: 2px;
@@ -258,13 +262,29 @@
 
 /* Path Info */
 .path-info {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 15px;
   background-color: #16213e;
   border-radius: 6px;
   border-left: 4px solid #e94560;
+}
+
+.player-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.player-info h4 {
+  grid-column: 1 / -1;
+  margin: 0 0 5px 0;
+  color: #e94560;
+  font-size: 1rem;
 }
 
 .info-item {
@@ -317,6 +337,11 @@
   background-color: #90EE90;
 }
 
+/* Điểm bắt đầu thứ 2 */
+.tile.start2 {
+  background-color: #98FB98;
+}
+
 /* Điểm kết thúc */
 .tile.end {
   background-color: #FFD700;
@@ -328,14 +353,30 @@
   animation: pathPulse 1s ease-in-out infinite;
 }
 
+/* Ô trong đường đi của nhân vật 2 */
+.tile.in-path2 {
+  background-color: #98D8C8 !important;
+  animation: pathPulse2 1s ease-in-out infinite;
+}
+
 .tile.in-path.start,
-.tile.in-path.end {
+.tile.in-path.end,
+.tile.in-path2.start,
+.tile.in-path2.start2,
+.tile.in-path2.end {
   animation: none;
 }
 
 /* Ô đã duyệt (visited nodes) */
 .tile.visited {
   background-color: rgba(192, 192, 192, 0.5) !important;
+  position: relative;
+  animation: visitedFadeIn 0.3s ease-in-out;
+}
+
+/* Ô đã duyệt của nhân vật 2 */
+.tile.visited2 {
+  background-color: rgba(152, 251, 152, 0.3) !important;
   position: relative;
   animation: visitedFadeIn 0.3s ease-in-out;
 }
@@ -368,6 +409,23 @@
   pointer-events: none;
 }
 
+.tile.visited2::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgba(50, 205, 50, 0.1) 5px,
+    rgba(50, 205, 50, 0.1) 10px
+  );
+  pointer-events: none;
+}
+
 /* Path có độ ưu tiên cao hơn visited */
 .tile.visited.in-path {
   background-color: #87CEEB !important;
@@ -377,12 +435,29 @@
   display: none;
 }
 
+.tile.visited2.in-path2 {
+  background-color: #98D8C8 !important;
+}
+
+.tile.visited2.in-path2::after {
+  display: none;
+}
+
 @keyframes pathPulse {
   0%, 100% {
     opacity: 0.7;
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes pathPulse2 {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.95;
   }
 }
 
@@ -422,6 +497,12 @@
   image-rendering: auto;
   image-rendering: crisp-edges;
   image-rendering: -webkit-optimize-contrast;
+}
+
+/* Player 2 styling */
+.player-marker-image.player-2,
+.tile-image.player-2-start {
+  filter: drop-shadow(0 0 15px rgba(50, 205, 50, 0.8)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) hue-rotate(90deg);
 }
 
 @keyframes playerBlink {

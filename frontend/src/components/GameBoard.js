@@ -6,7 +6,7 @@ import { PlayerMovement } from '../services/PlayerMovement';
 const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
 
 function GameBoard({ map, onMapUpdate }) {
-  const [editMode, setEditMode] = useState(null); // null, 'start', 'obstacle', 'end'
+  const [editMode, setEditMode] = useState(null); // null, 'start', 'start2', 'obstacle', 'end'
 
   const normalizeMap = (m) => {
     if (!m) {
@@ -38,30 +38,43 @@ function GameBoard({ map, onMapUpdate }) {
 
   const [localMap, setLocalMap] = useState(() => normalizeMap(map));
   const [currentPath, setCurrentPath] = useState([]);
+  const [currentPath2, setCurrentPath2] = useState([]);
   const [playerPosition, setPlayerPosition] = useState(null);
+  const [playerPosition2, setPlayerPosition2] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [pathInfo, setPathInfo] = useState(null);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState(null);
   const [showVisitedNodes, setShowVisitedNodes] = useState(false);
   const [visitedNodes, setVisitedNodes] = useState([]);
+  const [visitedNodes2, setVisitedNodes2] = useState([]);
   const [animatedVisitedNodes, setAnimatedVisitedNodes] = useState([]);
+  const [animatedVisitedNodes2, setAnimatedVisitedNodes2] = useState([]);
   const [isAnimatingVisited, setIsAnimatingVisited] = useState(false);
   const [visitedAnimationSpeed, setVisitedAnimationSpeed] = useState(100);
   const playerMovementRef = useRef(null);
+  const playerMovement2Ref = useRef(null);
   const visitedAnimationRef = useRef(null);
+  const visitedAnimation2Ref = useRef(null);
 
   // Update local map when prop changes
   useEffect(() => {
     setLocalMap(normalizeMap(map));
     setCurrentPath([]);
+    setCurrentPath2([]);
     setPlayerPosition(null);
+    setPlayerPosition2(null);
     setPathInfo(null);
     setShowVisitedNodes(false);
     setVisitedNodes([]);
+    setVisitedNodes2([]);
     setAnimatedVisitedNodes([]);
+    setAnimatedVisitedNodes2([]);
     setIsAnimatingVisited(false);
     if (visitedAnimationRef.current) {
       clearTimeout(visitedAnimationRef.current);
+    }
+    if (visitedAnimation2Ref.current) {
+      clearTimeout(visitedAnimation2Ref.current);
     }
   }, [map]);
 
@@ -81,6 +94,17 @@ function GameBoard({ map, onMapUpdate }) {
       }
       // Đặt điểm xuất phát mới
       newTiles[rowIndex][colIndex] = 'x';
+    } else if (editMode === 'start2') {
+      // Xóa điểm xuất phát thứ 2 cũ (nếu có)
+      for (let i = 0; i < newTiles.length; i++) {
+        for (let j = 0; j < newTiles[i].length; j++) {
+          if (newTiles[i][j] === 'z') {
+            newTiles[i][j] = '0';
+          }
+        }
+      }
+      // Đặt điểm xuất phát thứ 2 mới
+      newTiles[rowIndex][colIndex] = 'z';
     } else if (editMode === 'obstacle') {
       // Toggle chướng ngại vật
       if (newTiles[rowIndex][colIndex] === '1') {
@@ -131,9 +155,21 @@ function GameBoard({ map, onMapUpdate }) {
         setVisitedNodes(response.visitedNodes || []);
         setAnimatedVisitedNodes([]);
         
+        // Handle second player if exists
+        if (response.path2 && response.path2.length > 0) {
+          setCurrentPath2(response.path2);
+          setVisitedNodes2(response.visitedNodes2 || []);
+          setAnimatedVisitedNodes2([]);
+        }
+        
         // Animate visited nodes first if enabled
         if (showVisitedNodes && response.visitedNodes && response.visitedNodes.length > 0) {
-          await animateVisitedNodes(response.visitedNodes);
+          await animateVisitedNodes(response.visitedNodes, setAnimatedVisitedNodes, visitedAnimationRef);
+        }
+        
+        // Animate second player's visited nodes
+        if (showVisitedNodes && response.visitedNodes2 && response.visitedNodes2.length > 0) {
+          await animateVisitedNodes(response.visitedNodes2, setAnimatedVisitedNodes2, visitedAnimation2Ref);
         }
         
         // Then initialize player movement
@@ -143,16 +179,40 @@ function GameBoard({ map, onMapUpdate }) {
         playerMovementRef.current = movement;
         
         movement.setPath(response.path);
-        await movement.animatePath();
+        const animationPromise1 = movement.animatePath();
+        
+        // Initialize second player movement if exists
+        let animationPromise2 = Promise.resolve();
+        if (response.path2 && response.path2.length > 0) {
+          const movement2 = new PlayerMovement(localMap, (position, index) => {
+            setPlayerPosition2(position);
+          });
+          playerMovement2Ref.current = movement2;
+          movement2.setPath(response.path2);
+          animationPromise2 = movement2.animatePath();
+        }
+        
+        // Wait for both animations to complete
+        await Promise.all([animationPromise1, animationPromise2]);
         
         setIsAnimating(false);
       } else {
         setVisitedNodes(response.visitedNodes || []);
         setAnimatedVisitedNodes([]);
         
+        // Handle second player visited nodes even if first player failed
+        if (response.visitedNodes2) {
+          setVisitedNodes2(response.visitedNodes2);
+          setAnimatedVisitedNodes2([]);
+        }
+        
         // Still animate visited nodes even if no path found
         if (showVisitedNodes && response.visitedNodes && response.visitedNodes.length > 0) {
-          await animateVisitedNodes(response.visitedNodes);
+          await animateVisitedNodes(response.visitedNodes, setAnimatedVisitedNodes, visitedAnimationRef);
+        }
+        
+        if (showVisitedNodes && response.visitedNodes2 && response.visitedNodes2.length > 0) {
+          await animateVisitedNodes(response.visitedNodes2, setAnimatedVisitedNodes2, visitedAnimation2Ref);
         }
         
         alert('Không tìm thấy đường đi!');
@@ -165,14 +225,14 @@ function GameBoard({ map, onMapUpdate }) {
     }
   };
 
-  const animateVisitedNodes = async (nodes) => {
+  const animateVisitedNodes = async (nodes, setAnimatedNodes, animationRef) => {
     setIsAnimatingVisited(true);
-    setAnimatedVisitedNodes([]);
+    setAnimatedNodes([]);
     
     for (let i = 0; i < nodes.length; i++) {
       await new Promise(resolve => {
-        visitedAnimationRef.current = setTimeout(() => {
-          setAnimatedVisitedNodes(prev => [...prev, nodes[i]]);
+        animationRef.current = setTimeout(() => {
+          setAnimatedNodes(prev => [...prev, nodes[i]]);
           resolve();
         }, visitedAnimationSpeed);
       });
@@ -185,8 +245,14 @@ function GameBoard({ map, onMapUpdate }) {
     if (playerMovementRef.current) {
       playerMovementRef.current.stopAnimation();
     }
+    if (playerMovement2Ref.current) {
+      playerMovement2Ref.current.stopAnimation();
+    }
     if (visitedAnimationRef.current) {
       clearTimeout(visitedAnimationRef.current);
+    }
+    if (visitedAnimation2Ref.current) {
+      clearTimeout(visitedAnimation2Ref.current);
     }
     setIsAnimating(false);
     setIsAnimatingVisited(false);
@@ -196,29 +262,53 @@ function GameBoard({ map, onMapUpdate }) {
     if (playerMovementRef.current) {
       playerMovementRef.current.reset();
     }
+    if (playerMovement2Ref.current) {
+      playerMovement2Ref.current.reset();
+    }
     if (visitedAnimationRef.current) {
       clearTimeout(visitedAnimationRef.current);
     }
+    if (visitedAnimation2Ref.current) {
+      clearTimeout(visitedAnimation2Ref.current);
+    }
     setCurrentPath([]);
+    setCurrentPath2([]);
     setPlayerPosition(null);
+    setPlayerPosition2(null);
     setPathInfo(null);
     setSelectedAlgorithm(null);
     setShowVisitedNodes(false);
     setVisitedNodes([]);
+    setVisitedNodes2([]);
     setAnimatedVisitedNodes([]);
+    setAnimatedVisitedNodes2([]);
     setIsAnimatingVisited(false);
   };
 
   const handleReplayVisited = async () => {
-    if (visitedNodes.length === 0) return;
+    if (visitedNodes.length === 0 && visitedNodes2.length === 0) return;
     setIsAnimatingVisited(true);
-    await animateVisitedNodes(visitedNodes);
+    
+    const promises = [];
+    if (visitedNodes.length > 0) {
+      promises.push(animateVisitedNodes(visitedNodes, setAnimatedVisitedNodes, visitedAnimationRef));
+    }
+    if (visitedNodes2.length > 0) {
+      promises.push(animateVisitedNodes(visitedNodes2, setAnimatedVisitedNodes2, visitedAnimation2Ref));
+    }
+    
+    await Promise.all(promises);
   };
 
   const renderTileContent = (tile, rowIndex, colIndex) => {
-    // Check if player is at this position
+    // Check if player 1 is at this position
     if (playerPosition && playerPosition.row === rowIndex && playerPosition.col === colIndex) {
-      return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Player" className="player-marker-image" />;
+      return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Player 1" className="player-marker-image player-1" />;
+    }
+    
+    // Check if player 2 is at this position
+    if (playerPosition2 && playerPosition2.row === rowIndex && playerPosition2.col === colIndex) {
+      return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Player 2" className="player-marker-image player-2" />;
     }
     
     // Don't show start image if player is animating and this is the start position
@@ -228,6 +318,12 @@ function GameBoard({ map, onMapUpdate }) {
         return null; // Hide mario at start position when player is moving
       }
       return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Start" className="tile-image" />;
+    } else if (tile === 'z') {
+      // Second player start
+      if (isAnimating && playerPosition2 && !(playerPosition2.row === rowIndex && playerPosition2.col === colIndex)) {
+        return null;
+      }
+      return <img src={`${API_BASE_URL}/api/images/mario.jpeg`} alt="Start 2" className="tile-image player-2-start" />;
     } else if (tile === 'y') {
       return <img src={`${API_BASE_URL}/api/images/diamond.jpg`} alt="End" className="tile-image" />;
     }
@@ -241,6 +337,8 @@ function GameBoard({ map, onMapUpdate }) {
       className += ' blocked obstacle';
     } else if (tile === 'x') {
       className += ' start';
+    } else if (tile === 'z') {
+      className += ' start start2';
     } else if (tile === 'y') {
       className += ' end';
     } else {
@@ -249,10 +347,19 @@ function GameBoard({ map, onMapUpdate }) {
 
     // Highlight visited nodes if enabled (use animated nodes if animation is enabled)
     const nodesToShow = showVisitedNodes ? (isAnimatingVisited ? animatedVisitedNodes : visitedNodes) : [];
+    const nodesToShow2 = showVisitedNodes ? (isAnimatingVisited ? animatedVisitedNodes2 : visitedNodes2) : [];
+    
     if (nodesToShow.length > 0) {
       const isVisited = nodesToShow.some(pos => pos.row === rowIndex && pos.col === colIndex);
-      if (isVisited && tile !== 'x' && tile !== 'y') {
+      if (isVisited && tile !== 'x' && tile !== 'z' && tile !== 'y') {
         className += ' visited';
+      }
+    }
+    
+    if (nodesToShow2.length > 0) {
+      const isVisited2 = nodesToShow2.some(pos => pos.row === rowIndex && pos.col === colIndex);
+      if (isVisited2 && tile !== 'x' && tile !== 'z' && tile !== 'y') {
+        className += ' visited2';
       }
     }
 
@@ -261,6 +368,13 @@ function GameBoard({ map, onMapUpdate }) {
       const isInPath = currentPath.some(pos => pos.row === rowIndex && pos.col === colIndex);
       if (isInPath) {
         className += ' in-path';
+      }
+    }
+    
+    if (currentPath2.length > 0 && !isAnimatingVisited) {
+      const isInPath2 = currentPath2.some(pos => pos.row === rowIndex && pos.col === colIndex);
+      if (isInPath2) {
+        className += ' in-path2';
       }
     }
 
@@ -283,7 +397,15 @@ function GameBoard({ map, onMapUpdate }) {
           disabled={isAnimating}
         >
           <div className="btn-icon circle-icon"></div>
-          Thêm điểm xuất phát (x)
+          Thêm điểm xuất phát 1 (x)
+        </button>
+        <button 
+          className={`tool-btn start2-btn ${editMode === 'start2' ? 'active' : ''}`}
+          onClick={() => setEditMode(editMode === 'start2' ? null : 'start2')}
+          disabled={isAnimating}
+        >
+          <div className="btn-icon circle-icon"></div>
+          Thêm điểm xuất phát 2 (z)
         </button>
         <button 
           className={`tool-btn obstacle-btn ${editMode === 'obstacle' ? 'active' : ''}`}
@@ -408,22 +530,43 @@ function GameBoard({ map, onMapUpdate }) {
             <div className="info-item">
               <strong>Thuật toán:</strong> {pathInfo.algorithm}
             </div>
-            <div className="info-item">
-              <strong>Tìm thấy:</strong> {pathInfo.found ? 'Có' : 'Không'}
+            <div className="player-info">
+              <h4>🎮 Nhân vật 1:</h4>
+              <div className="info-item">
+                <strong>Tìm thấy:</strong> {pathInfo.found ? 'Có' : 'Không'}
+              </div>
+              {pathInfo.found && (
+                <>
+                  <div className="info-item">
+                    <strong>Độ dài đường đi:</strong> {pathInfo.path.length} bước
+                  </div>
+                  <div className="info-item">
+                    <strong>Số node đã duyệt:</strong> {pathInfo.nodesExplored}
+                  </div>
+                </>
+              )}
             </div>
-            {pathInfo.found && (
-              <>
+            {pathInfo.path2 && (
+              <div className="player-info">
+                <h4>🎮 Nhân vật 2:</h4>
                 <div className="info-item">
-                  <strong>Độ dài đường đi:</strong> {pathInfo.path.length} bước
+                  <strong>Tìm thấy:</strong> {pathInfo.found2 ? 'Có' : 'Không'}
                 </div>
-                <div className="info-item">
-                  <strong>Số node đã duyệt:</strong> {pathInfo.nodesExplored}
-                </div>
-                <div className="info-item">
-                  <strong>Thời gian:</strong> {pathInfo.executionTime} ms
-                </div>
-              </>
+                {pathInfo.found2 && (
+                  <>
+                    <div className="info-item">
+                      <strong>Độ dài đường đi:</strong> {pathInfo.path2.length} bước
+                    </div>
+                    <div className="info-item">
+                      <strong>Số node đã duyệt:</strong> {pathInfo.nodesExplored2}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
+            <div className="info-item">
+              <strong>Thời gian:</strong> {pathInfo.executionTime} ms
+            </div>
           </div>
         )}
       </div>
