@@ -79,6 +79,7 @@ build:backend-image:staging:
     - echo "✓ Backend staging build completed successfully"
   only:
     changes:
+      - CI_COMMIT_REF_NAME == "develop"
       - backend/**/*
       - .gitlab-ci.yml
 
@@ -116,6 +117,7 @@ build:frontend-image:staging:
     - echo "✓ Frontend staging build completed successfully"
   only:
     changes:
+      - CI_COMMIT_REF_NAME == "develop"
       - frontend/**/*
       - .gitlab-ci.yml
       
