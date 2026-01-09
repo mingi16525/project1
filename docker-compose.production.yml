@@ -34,7 +34,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      - REACT_APP_API_URL=http://152.42.196.25:8080
+      - REACT_APP_API_URL=https://prj1mg.me
     depends_on:
       - backend-production
     networks:

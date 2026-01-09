@@ -173,7 +173,7 @@ build:frontend-image:production:
       echo "API URL: $REACT_APP_API_URL"
       if [ -z "$REACT_APP_API_URL" ]; then
        echo "WARNING: REACT_APP_API_URL is not set, using default"
-       REACT_APP_API_URL="http://152.42.196.25:8080"
+       REACT_APP_API_URL="https://prj1mg.me"
       fi
       echo "Using API URL: $REACT_APP_API_URL"
     - docker build --build-arg REACT_APP_API_URL=$REACT_APP_API_URL -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA .
