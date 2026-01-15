@@ -113,16 +113,14 @@ function GameBoard({ map, onMapUpdate }) {
         newTiles[rowIndex][colIndex] = '1';
       }
     } else if (editMode === 'end') {
-      // Xóa điểm kết thúc cũ (nếu có)
-      for (let i = 0; i < newTiles.length; i++) {
-        for (let j = 0; j < newTiles[i].length; j++) {
-          if (newTiles[i][j] === 'y') {
-            newTiles[i][j] = '0';
-          }
-        }
+      // Toggle điểm kết thúc - cho phép nhiều điểm đích
+      if (newTiles[rowIndex][colIndex] === 'y') {
+        // Nếu đã là điểm đích, xóa nó
+        newTiles[rowIndex][colIndex] = '0';
+      } else if (newTiles[rowIndex][colIndex] === '0') {
+        // Nếu là ô trống, thêm điểm đích
+        newTiles[rowIndex][colIndex] = 'y';
       }
-      // Đặt điểm kết thúc mới
-      newTiles[rowIndex][colIndex] = 'y';
     }
 
     const updatedMap = {
@@ -421,7 +419,7 @@ function GameBoard({ map, onMapUpdate }) {
           disabled={isAnimating}
         >
           <div className="btn-icon diamond-icon"></div>
-          Thêm điểm kết thúc (y)
+          Thêm/Xóa điểm kết thúc (y)
         </button>
         {editMode && (
           <button 

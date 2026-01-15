@@ -34,6 +34,7 @@ Thumbs.db
 coverage/
 
 # .md files
+baocao.md
 DEPLOY_GUIDE.md
 DEVOPS_GUIDE.md
 

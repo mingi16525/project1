@@ -6,7 +6,8 @@
 
 ### Core Features
 - ✅ **Tạo và chỉnh sửa map tùy chỉnh** - Map0 với kích thước n×m tùy ý
-- ✅ **Chỉnh sửa map tương tác** - Thêm điểm xuất phát (x), chướng ngại vật (1), điểm kết thúc (y)
+- ✅ **Chỉnh sửa map tương tác** - Thêm điểm xuất phát (x), chướng ngại vật (1), nhiều điểm kết thúc (y)
+- ✅ **Hỗ trợ nhiều điểm đích** - Thuật toán tự động tìm đường đi đến điểm đích gần nhất
 - ✅ **4 thuật toán tìm đường**:
   - **BFS** (Breadth-First Search) - Tìm đường đi ngắn nhất
   - **DFS** (Depth-First Search) - Duyệt theo chiều sâu
@@ -159,11 +160,11 @@ Application sẽ chạy tại: **http://localhost:3000**
 ### 2. Chỉnh sửa Map
 - **Thêm điểm xuất phát (x)**: Click button "Thêm điểm xuất phát" → Click vào ô trên map
 - **Thêm chướng ngại (1)**: Click button "Thêm chướng ngại" → Click vào ô (toggle on/off)
-- **Thêm điểm kết thúc (y)**: Click button "Thêm điểm kết thúc" → Click vào ô
+- **Thêm điểm kết thúc (y)**: Click button "Thêm/Xóa điểm kết thúc" → Click vào các ô để thêm nhiều điểm đích (toggle on/off)
 
 ### 3. Chạy thuật toán
 - Click một trong 4 button thuật toán: BFS, DFS, A*, IDS
-- Hệ thống sẽ tự động:
+- Hệ thống sẽ tự động tìm đường đi đến **điểm đích gần nhất** (nếu có nhiều điểm đích):
   1. Hiển thị animation các node được duyệt (nếu bật)
   2. Di chuyển Mario theo đường đi tìm được
   3. Hiển thị thống kê (độ dài, số node, thời gian)
@@ -179,9 +180,9 @@ Application sẽ chạy tại: **http://localhost:3000**
 
 ### BFS (Breadth-First Search)
 - Duyệt theo chiều rộng
-- **Đảm bảo** tìm được đường đi **ngắn nhất**
+- **Đảm bảo** tìm được đường đi **ngắn nhất** đến điểm đích gần nhất
 - Sử dụng Queue (FIFO)
-- Phù hợp với: Map đơn giản, cần đường đi ngắn nhất
+- Phù hợp với: Map đơn giản, cần đường đi ngắn nhất, nhiều điểm đích
 
 ### DFS (Depth-First Search)
 - Duyệt theo chiều sâu
@@ -191,9 +192,9 @@ Application sẽ chạy tại: **http://localhost:3000**
 
 ### A* (A-Star)
 - Thuật toán tìm kiếm **tối ưu** với heuristic
-- Sử dụng **Manhattan Distance** (|x1-x2| + |y1-y2|)
+- Sử dụng **Manhattan Distance** đến điểm đích gần nhất: min(|x1-x2| + |y1-y2|) cho tất cả các điểm y
 - Priority Queue với f(n) = g(n) + h(n)
-- Phù hợp với: Cần hiệu suất cao, đường đi tối ưu
+- Phù hợp với: Cần hiệu suất cao, đường đi tối ưu, nhiều điểm đích
 
 ### IDS (Iterative Deepening Search)
 - Kết hợp ưu điểm BFS và DFS
@@ -240,7 +241,7 @@ Application sẽ chạy tại: **http://localhost:3000**
 0111111110
 0x00000010
 0000011110
-000000000y
+000000y00y
 ```
 
 - **Dòng 1**: `height width` (chiều cao × chiều rộng)
@@ -248,7 +249,8 @@ Application sẽ chạy tại: **http://localhost:3000**
   - `0`: Ô rỗng (trắng)
   - `1`: Chướng ngại vật (đỏ)
   - `x`: Điểm xuất phát (Mario)
-  - `y`: Điểm kết thúc (Diamond)
+  - `y`: Điểm kết thúc (Diamond) - **Có thể có nhiều điểm đích**
+  - `z`: Điểm xuất phát thứ 2 (Mario 2)
 
 ## 🎨 Giao diện
 
